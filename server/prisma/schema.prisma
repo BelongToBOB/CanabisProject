@@ -1,0 +1,84 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  // url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  STAFF
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  username  String   @unique @db.VarChar(50)
+  password  String   @db.VarChar(255)
+  role      Role
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Batch {
+  id                   Int                    @id @default(autoincrement())
+  batchIdentifier      String                 @unique @db.VarChar(100)
+  productName          String                 @db.VarChar(255)
+  purchaseDate         DateTime               @db.Date
+  purchasePricePerUnit Decimal                @db.Decimal(10, 2)
+  initialQuantity      Int
+  currentQuantity      Int
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  lineItems            SalesOrderLineItem[]
+  
+  @@index([productName])
+  @@index([purchaseDate])
+  @@index([batchIdentifier])
+}
+
+model SalesOrder {
+  id           Int                    @id @default(autoincrement())
+  orderDate    DateTime               @default(now())
+  customerName String?                @db.VarChar(255)
+  totalProfit  Decimal                @db.Decimal(10, 2)
+  isLocked     Boolean                @default(false)
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
+  lineItems    SalesOrderLineItem[]
+  
+  @@index([orderDate])
+  @@index([isLocked])
+  @@index([orderDate, isLocked])
+}
+
+model SalesOrderLineItem {
+  id                  Int         @id @default(autoincrement())
+  salesOrderId        Int
+  batchId             Int
+  quantitySold        Int
+  sellingPricePerUnit Decimal     @db.Decimal(10, 2)
+  lineProfit          Decimal     @db.Decimal(10, 2)
+  salesOrder          SalesOrder  @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  batch               Batch       @relation(fields: [batchId], references: [id], onDelete: Restrict)
+  
+  @@index([salesOrderId])
+  @@index([batchId])
+}
+
+model ProfitShare {
+  id             Int      @id @default(autoincrement())
+  month          Int
+  year           Int
+  totalProfit    Decimal  @db.Decimal(10, 2)
+  amountPerOwner Decimal  @db.Decimal(10, 2)
+  executionDate  DateTime @default(now())
+  createdAt      DateTime @default(now())
+  
+  @@unique([month, year])
+  @@index([executionDate])
+}
