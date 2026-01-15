@@ -41,17 +41,37 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   useEffect(() => {
     const initializeAuth = () => {
       try {
-        const token = localStorage.getItem('authToken');
+        console.log('[Auth] Initializing auth state from localStorage');
+        
+        // Clean up any legacy 'token' key (we only use 'authToken')
+        if (localStorage.getItem('token')) {
+          console.warn('[Auth] Found legacy "token" key - removing it (we use "authToken" only)');
+          localStorage.removeItem('token');
+        }
+
+        // Try authToken first, fallback to legacy token for backward compatibility
+        const token = localStorage.getItem('authToken') || localStorage.getItem('token');
         const storedUser = localStorage.getItem('user');
 
         if (token && storedUser) {
           const parsedUser = JSON.parse(storedUser);
+          console.log('[Auth] Restored user from localStorage:', parsedUser.username, 'role:', parsedUser.role);
           setUser(parsedUser);
+          
+          // If we found token in legacy key, migrate it
+          if (!localStorage.getItem('authToken') && localStorage.getItem('token')) {
+            console.log('[Auth] Migrating token from legacy "token" key to "authToken"');
+            localStorage.setItem('authToken', token);
+            localStorage.removeItem('token');
+          }
+        } else {
+          console.log('[Auth] No valid auth state found in localStorage');
         }
       } catch (error) {
-        console.error('Failed to initialize auth state:', error);
+        console.error('[Auth] Failed to initialize auth state:', error);
         localStorage.removeItem('authToken');
         localStorage.removeItem('user');
+        localStorage.removeItem('token'); // Clean up legacy key
       } finally {
         setIsLoading(false);
       }
@@ -62,33 +82,47 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const login = async (credentials: LoginCredentials): Promise<void> => {
     try {
+      console.log('[Auth] Attempting login for:', credentials.username);
       const response = await apiClient.post<LoginResponse>('/auth/login', credentials);
       const { token, user: userData } = response.data;
 
-      // Store token and user data
+      console.log('[Auth] Login successful, storing token for user:', userData.username, 'role:', userData.role);
+
+      // Clean up any legacy keys first
+      localStorage.removeItem('token');
+
+      // Store ONLY authToken (standardized key)
       localStorage.setItem('authToken', token);
       localStorage.setItem('user', JSON.stringify(userData));
 
+      console.log('[Auth] Token stored in authToken key');
+
       setUser(userData);
     } catch (error) {
+      console.error('[Auth] Login failed:', error);
+      
       // Clear any existing auth state on login failure
       localStorage.removeItem('authToken');
       localStorage.removeItem('user');
+      localStorage.removeItem('token'); // Clean up legacy key
       setUser(null);
       throw error;
     }
   };
 
   const logout = () => {
-    // Clear auth state
+    console.log('[Auth] Logging out user');
+    
+    // Clear all auth state
     localStorage.removeItem('authToken');
     localStorage.removeItem('user');
+    localStorage.removeItem('token'); // Clean up legacy key
     setUser(null);
 
-    // Optionally call logout endpoint (though JWT is stateless)
-    apiClient.post('/auth/logout').catch(() => {
-      // Ignore errors on logout endpoint
-    });
+    // Note: We don't call /auth/logout endpoint because:
+    // 1. JWT is stateless (no server-side session)
+    // 2. We may not have a valid token at this point
+    // 3. Clearing localStorage is sufficient
   };
 
   const value: AuthContextType = {

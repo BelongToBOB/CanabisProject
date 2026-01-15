@@ -8,12 +8,14 @@ export interface CreateBatchInput {
   productName: string;
   purchaseDate: Date;
   purchasePricePerUnit: number;
+  defaultSellingPricePerUnit?: number;
   initialQuantity: number;
 }
 
 export interface UpdateBatchInput {
   productName?: string;
   currentQuantity?: number;
+  defaultSellingPricePerUnit?: number;
   // Note: purchaseDate and purchasePricePerUnit are intentionally excluded (immutable)
 }
 
@@ -27,6 +29,7 @@ export interface BatchResponse {
   productName: string;
   purchaseDate: Date;
   purchasePricePerUnit: number;
+  defaultSellingPricePerUnit: number;
   initialQuantity: number;
   currentQuantity: number;
   createdAt: Date;
@@ -44,6 +47,7 @@ export class BatchService {
       productName: batch.productName,
       purchaseDate: batch.purchaseDate,
       purchasePricePerUnit: batch.purchasePricePerUnit.toNumber(),
+      defaultSellingPricePerUnit: batch.defaultSellingPricePerUnit.toNumber(),
       initialQuantity: batch.initialQuantity,
       currentQuantity: batch.currentQuantity,
       createdAt: batch.createdAt,
@@ -68,6 +72,11 @@ export class BatchService {
       throw new Error('Purchase price per unit must be non-negative');
     }
 
+    // Validate default selling price if provided
+    if (data.defaultSellingPricePerUnit !== undefined && data.defaultSellingPricePerUnit < 0) {
+      throw new Error('Default selling price per unit must be non-negative');
+    }
+
     // Validate quantity values (positive integers) - Requirement 11.5
     if (!Number.isInteger(data.initialQuantity) || data.initialQuantity <= 0) {
       throw new Error('Initial quantity must be a positive integer');
@@ -89,6 +98,7 @@ export class BatchService {
         productName: data.productName,
         purchaseDate: data.purchaseDate,
         purchasePricePerUnit: new Decimal(data.purchasePricePerUnit),
+        defaultSellingPricePerUnit: new Decimal(data.defaultSellingPricePerUnit || 0),
         initialQuantity: data.initialQuantity,
         currentQuantity: data.initialQuantity, // Initialize to initial quantity
       },
@@ -112,6 +122,28 @@ export class BatchService {
 
     const batches = await prisma.batch.findMany({
       where,
+      orderBy: [
+        { productName: 'asc' },
+        { batchIdentifier: 'asc' },
+      ],
+    });
+
+    return batches.map(batch => this.toBatchResponse(batch));
+  }
+
+  /**
+   * Get available batches for sales order creation
+   * Returns only batches with currentQuantity > 0
+   * Accessible by both ADMIN and STAFF
+   * @returns Array of available batches
+   */
+  static async getAvailableBatches(): Promise<BatchResponse[]> {
+    const batches = await prisma.batch.findMany({
+      where: {
+        currentQuantity: {
+          gt: 0,
+        },
+      },
       orderBy: [
         { productName: 'asc' },
         { batchIdentifier: 'asc' },
@@ -209,6 +241,15 @@ export class BatchService {
       }
 
       updateData.currentQuantity = data.currentQuantity;
+    }
+
+    if (data.defaultSellingPricePerUnit !== undefined) {
+      // Validate default selling price (non-negative)
+      if (data.defaultSellingPricePerUnit < 0) {
+        throw new Error('Default selling price per unit must be non-negative');
+      }
+
+      updateData.defaultSellingPricePerUnit = new Decimal(data.defaultSellingPricePerUnit);
     }
 
     // Update batch (purchaseDate and purchasePricePerUnit are immutable)

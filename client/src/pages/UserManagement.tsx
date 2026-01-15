@@ -53,9 +53,9 @@ const UserManagement: React.FC = () => {
       const response = await apiClient.get<User[]>('/users');
       setUsers(response.data);
     } catch (err: any) {
-      const errorMsg = err.response?.data?.message || 'Failed to fetch users';
+      const errorMsg = err.response?.data?.message || 'ไม่สามารถดึงข้อมูลผู้ใช้งานได้';
       setError(errorMsg);
-      handleError(err, 'Failed to fetch users');
+      handleError(err, 'ไม่สามารถดึงข้อมูลผู้ใช้งานได้');
     } finally {
       setIsLoading(false);
     }
@@ -65,15 +65,15 @@ const UserManagement: React.FC = () => {
     const errors: Record<string, string> = {};
     
     if (!formData.username.trim()) {
-      errors.username = 'Username is required';
+      errors.username = 'กรุณากรอกชื่อผู้ใช้';
     } else if (formData.username.length < 3) {
-      errors.username = 'Username must be at least 3 characters';
+      errors.username = 'ชื่อผู้ใช้ต้องมีอย่างน้อย 3 ตัวอักษร';
     }
     
     if (!editingUser && !formData.password) {
-      errors.password = 'Password is required';
+      errors.password = 'กรุณากรอกรหัสผ่าน';
     } else if (!editingUser && formData.password.length < 6) {
-      errors.password = 'Password must be at least 6 characters';
+      errors.password = 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร';
     }
     
     setFormErrors(errors);
@@ -90,14 +90,14 @@ const UserManagement: React.FC = () => {
     try {
       setError(null);
       await apiClient.post('/users', formData);
-      showSuccess('User created successfully');
+      showSuccess('สร้างผู้ใช้งานสำเร็จ');
       setShowCreateForm(false);
       resetForm();
       fetchUsers();
     } catch (err: any) {
-      const errorMsg = err.response?.data?.message || 'Failed to create user';
+      const errorMsg = err.response?.data?.message || 'ไม่สามารถสร้างผู้ใช้งานได้';
       setError(errorMsg);
-      handleError(err, 'Failed to create user');
+      handleError(err, 'ไม่สามารถสร้างผู้ใช้งานได้');
     }
   };
 
@@ -121,14 +121,14 @@ const UserManagement: React.FC = () => {
       }
       
       await apiClient.put(`/users/${editingUser.id}`, updateData);
-      showSuccess('User updated successfully');
+      showSuccess('อัปเดตผู้ใช้งานสำเร็จ');
       setEditingUser(null);
       resetForm();
       fetchUsers();
     } catch (err: any) {
-      const errorMsg = err.response?.data?.message || 'Failed to update user';
+      const errorMsg = err.response?.data?.message || 'ไม่สามารถอัปเดตผู้ใช้งานได้';
       setError(errorMsg);
-      handleError(err, 'Failed to update user');
+      handleError(err, 'ไม่สามารถอัปเดตผู้ใช้งานได้');
     }
   };
 
@@ -138,13 +138,13 @@ const UserManagement: React.FC = () => {
     try {
       setError(null);
       await apiClient.delete(`/users/${userToDelete.id}`);
-      showSuccess('User deleted successfully');
+      showSuccess('ลบผู้ใช้งานสำเร็จ');
       setUserToDelete(null);
       fetchUsers();
     } catch (err: any) {
-      const errorMsg = err.response?.data?.message || 'Failed to delete user';
+      const errorMsg = err.response?.data?.message || 'ไม่สามารถลบผู้ใช้งานได้';
       setError(errorMsg);
-      handleError(err, 'Failed to delete user');
+      handleError(err, 'ไม่สามารถลบผู้ใช้งานได้');
       setUserToDelete(null);
     }
   };
@@ -188,7 +188,7 @@ const UserManagement: React.FC = () => {
   };
 
   if (isLoading) {
-    return <LoadingSpinner fullScreen message="Loading users..." />;
+    return <LoadingSpinner fullScreen message="กำลังโหลดผู้ใช้งาน..." />;
   }
 
   return (
@@ -211,7 +211,7 @@ const UserManagement: React.FC = () => {
               }}
               className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              {showCreateForm ? 'Cancel' : 'เพิ่มผู้ใช้งาน'}
+              {showCreateForm ? 'ยกเลิก' : 'เพิ่มผู้ใช้งาน'}
             </button>
           </div>
 
@@ -225,11 +225,11 @@ const UserManagement: React.FC = () => {
           {/* Create User Form */}
           {showCreateForm && (
             <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">Create New User</h2>
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">สร้างผู้ใช้งานใหม่</h2>
               <form onSubmit={handleCreateUser} className="space-y-4">
                 <div>
                   <label htmlFor="create-username" className="block text-sm font-medium text-gray-700">
-                    Username
+                    ชื่อผู้ใช้
                   </label>
                   <input
                     type="text"
@@ -248,7 +248,7 @@ const UserManagement: React.FC = () => {
 
                 <div>
                   <label htmlFor="create-password" className="block text-sm font-medium text-gray-700">
-                    Password
+                    รหัสผ่าน
                   </label>
                   <input
                     type="password"
@@ -267,7 +267,7 @@ const UserManagement: React.FC = () => {
 
                 <div>
                   <label htmlFor="create-role" className="block text-sm font-medium text-gray-700">
-                    Role
+                    บทบาท
                   </label>
                   <select
                     id="create-role"
@@ -276,8 +276,8 @@ const UserManagement: React.FC = () => {
                     onChange={handleInputChange}
                     className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                   >
-                    <option value="STAFF">Staff</option>
-                    <option value="ADMIN">Admin</option>
+                    <option value="STAFF">พนักงาน</option>
+                    <option value="ADMIN">ผู้ดูแลระบบ</option>
                   </select>
                 </div>
 
@@ -286,7 +286,7 @@ const UserManagement: React.FC = () => {
                     type="submit"
                     className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
-                    Create User
+                    สร้างผู้ใช้งาน
                   </button>
                   <button
                     type="button"
@@ -296,7 +296,7 @@ const UserManagement: React.FC = () => {
                     }}
                     className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500"
                   >
-                    Cancel
+                    ยกเลิก
                   </button>
                 </div>
               </form>
@@ -307,12 +307,12 @@ const UserManagement: React.FC = () => {
           {editingUser && (
             <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
               <h2 className="text-xl font-semibold text-gray-900 mb-4">
-                Edit User: {editingUser.username}
+                แก้ไขผู้ใช้งาน: {editingUser.username}
               </h2>
               <form onSubmit={handleUpdateUser} className="space-y-4">
                 <div>
                   <label htmlFor="edit-username" className="block text-sm font-medium text-gray-700">
-                    Username
+                    ชื่อผู้ใช้
                   </label>
                   <input
                     type="text"
@@ -331,7 +331,7 @@ const UserManagement: React.FC = () => {
 
                 <div>
                   <label htmlFor="edit-password" className="block text-sm font-medium text-gray-700">
-                    Password (leave blank to keep current)
+                    รหัสผ่าน (เว้นว่างไว้เพื่อเก็บรหัสผ่านเดิม)
                   </label>
                   <input
                     type="password"
@@ -350,7 +350,7 @@ const UserManagement: React.FC = () => {
 
                 <div>
                   <label htmlFor="edit-role" className="block text-sm font-medium text-gray-700">
-                    Role
+                    บทบาท
                   </label>
                   <select
                     id="edit-role"
@@ -359,8 +359,8 @@ const UserManagement: React.FC = () => {
                     onChange={handleInputChange}
                     className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                   >
-                    <option value="STAFF">Staff</option>
-                    <option value="ADMIN">Admin</option>
+                    <option value="STAFF">พนักงาน</option>
+                    <option value="ADMIN">ผู้ดูแลระบบ</option>
                   </select>
                 </div>
 
@@ -369,14 +369,14 @@ const UserManagement: React.FC = () => {
                     type="submit"
                     className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
-                    Update User
+                    อัปเดตผู้ใช้งาน
                   </button>
                   <button
                     type="button"
                     onClick={cancelEdit}
                     className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500"
                   >
-                    Cancel
+                    ยกเลิก
                   </button>
                 </div>
               </form>
@@ -389,19 +389,19 @@ const UserManagement: React.FC = () => {
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    ID
+                    รหัส
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Username
+                    ชื่อผู้ใช้
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Role
+                    บทบาท
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Created At
+                    วันที่สร้าง
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
+                    การดำเนินการ
                   </th>
                 </tr>
               </thead>
@@ -409,7 +409,7 @@ const UserManagement: React.FC = () => {
                 {users.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="px-6 py-4 text-center text-gray-500">
-                      No users found
+                      ไม่พบผู้ใช้งาน
                     </td>
                   </tr>
                 ) : (
@@ -421,7 +421,7 @@ const UserManagement: React.FC = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {user.username}
                         {user.id === currentUser?.id && (
-                          <span className="ml-2 text-xs text-blue-600">(You)</span>
+                          <span className="ml-2 text-xs text-blue-600">(คุณ)</span>
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -443,7 +443,7 @@ const UserManagement: React.FC = () => {
                           onClick={() => startEdit(user)}
                           className="text-blue-600 hover:text-blue-900 mr-4"
                         >
-                          Edit
+                          แก้ไข
                         </button>
                         <button
                           onClick={() => setUserToDelete(user)}
@@ -454,7 +454,7 @@ const UserManagement: React.FC = () => {
                               : 'text-red-600 hover:text-red-900'
                           }`}
                         >
-                          Delete
+                          ลบ
                         </button>
                       </td>
                     </tr>
@@ -471,24 +471,24 @@ const UserManagement: React.FC = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              Confirm Delete
+              ยืนยันการลบ
             </h3>
             <p className="text-gray-600 mb-6">
-              Are you sure you want to delete user <strong>{userToDelete.username}</strong>?
-              This action cannot be undone.
+              คุณแน่ใจหรือไม่ว่าต้องการลบผู้ใช้งาน <strong>{userToDelete.username}</strong>?
+              การดำเนินการนี้ไม่สามารถย้อนกลับได้
             </p>
             <div className="flex gap-2 justify-end">
               <button
                 onClick={() => setUserToDelete(null)}
                 className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500"
               >
-                Cancel
+                ยกเลิก
               </button>
               <button
                 onClick={handleDeleteUser}
                 className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
               >
-                Delete
+                ลบ
               </button>
             </div>
           </div>

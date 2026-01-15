@@ -7,14 +7,14 @@ const Breadcrumb: React.FC = () => {
 
   // Map route segments to readable names
   const routeNameMap: Record<string, string> = {
-    users: 'Users',
-    batches: 'Inventory Batches',
-    'sales-orders': 'Sales Orders',
-    create: 'Create',
-    reports: 'Reports',
-    inventory: 'Inventory Report',
-    'monthly-profit': 'Monthly Profit',
-    'profit-shares': 'Profit Sharing',
+    users: 'ผู้ใช้งาน',
+    batches: 'สินค้าคงคลัง',
+    'sales-orders': 'คำสั่งขาย',
+    create: 'สร้าง',
+    reports: 'รายงาน',
+    inventory: 'รายงานสต็อก',
+    'monthly-profit': 'กำไรรายเดือน',
+    'profit-shares': 'การแบ่งกำไร',
   };
 
   // Don't show breadcrumb on home page

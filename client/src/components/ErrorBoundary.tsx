@@ -20,7 +20,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
     };
   }
 
-  static getDerivedStateFromError(error: Error): Partial<ErrorBoundaryState> {
+  static getDerivedStateFromError(_error: Error): Partial<ErrorBoundaryState> {
     return { hasError: true };
   }
 
@@ -61,18 +61,18 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
                   />
                 </svg>
               </div>
-              <h1 className="text-2xl font-bold text-gray-900 mb-2">
-                Something went wrong
-              </h1>
+              <h3 className="text-lg font-semibold text-gray-900">
+                เกิดข้อผิดพลาด
+              </h3>
               <p className="text-gray-600 mb-6">
-                An unexpected error occurred. Please try refreshing the page or contact support if the problem persists.
+                เกิดข้อผิดพลาดที่ไม่คาดคิด กรุณาลองรีเฟรชหน้าหรือติดต่อฝ่ายสนับสนุนหากปัญหายังคงอยู่
               </p>
 
-              {process.env.NODE_ENV === 'development' && this.state.error && (
+              {import.meta.env.DEV && this.state.error && (
                 <div className="mb-6 text-left">
                   <details className="bg-red-50 border border-red-200 rounded-md p-4">
                     <summary className="cursor-pointer font-semibold text-red-800 mb-2">
-                      Error Details (Development Only)
+                      รายละเอียดข้อผิดพลาด (โหมดพัฒนาเท่านั้น)
                     </summary>
                     <div className="mt-2 text-sm text-red-700">
                       <p className="font-semibold mb-2">{this.state.error.toString()}</p>
@@ -91,13 +91,13 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
                   onClick={this.handleReset}
                   className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  Try Again
+                  ลองอีกครั้ง
                 </button>
                 <button
                   onClick={() => window.location.href = '/'}
                   className="px-6 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500"
                 >
-                  Go to Home
+                  กลับหน้าหลัก
                 </button>
               </div>
             </div>

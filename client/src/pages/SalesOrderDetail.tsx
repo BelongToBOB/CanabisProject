@@ -9,6 +9,11 @@ interface LineItem {
   productName: string;
   quantitySold: number;
   sellingPricePerUnit: number;
+  purchasePricePerUnit: number;
+  discountType: 'NONE' | 'PERCENT' | 'AMOUNT';
+  discountValue: number;
+  finalSellingPricePerUnit: number;
+  subtotal: number;
   lineProfit: number;
 }
 
@@ -190,36 +195,62 @@ const SalesOrderDetail: React.FC = () => {
 
           {/* Line Items */}
           <h2 className="text-xl font-semibold mb-4">รายการสินค้า</h2>
-          <table className="w-full ">
-            <thead className="bg-gray-100">
-              <tr>
-                <th className="p-2 text-left">สินค้า</th>
-                <th className="p-2 text-left">ล็อต</th>
-                <th className="p-2 text-right">จำนวน</th>
-                <th className="p-2 text-right">ต้นทุน/หน่วย</th>
-                <th className="p-2 text-right">ราคาขาย/หน่วย</th>
-                <th className="p-2 text-right">กำไร</th>
-              </tr>
-            </thead>
-            <tbody>
-              {order.lineItems.map(item => (
-                <tr key={item.id} >
-                  <td className="p-2">{item.productName || 'ไม่ระบุ'}</td>
-                  <td className="p-2">{item.batchIdentifier || 'ไม่ระบุ'}</td>
-                  <td className="p-2 text-right">{item.quantitySold}</td>
-                  <td className="p-2 text-right">
-                    {formatCurrency(item.sellingPricePerUnit / (1 + (item.lineProfit / (item.sellingPricePerUnit * item.quantitySold))))}
-                  </td>
-                  <td className="p-2 text-right">
-                    {formatCurrency(item.sellingPricePerUnit)}
-                  </td>
-                  <td className="p-2 text-right">
-                    {formatCurrency(item.lineProfit)}
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-100">
+                <tr>
+                  <th className="p-2 text-left">สินค้า</th>
+                  <th className="p-2 text-left">ล็อต</th>
+                  <th className="p-2 text-right">จำนวน</th>
+                  <th className="p-2 text-right">ต้นทุน/หน่วย</th>
+                  <th className="p-2 text-right">ราคาขาย/หน่วย</th>
+                  <th className="p-2 text-right">ส่วนลด</th>
+                  <th className="p-2 text-right">ราคาสุทธิ/หน่วย</th>
+                  <th className="p-2 text-right">ยอดรวม</th>
+                  <th className="p-2 text-right">กำไร</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {order.lineItems.map(item => (
+                  <tr key={item.id}>
+                    <td className="p-2">{item.productName || 'ไม่ระบุ'}</td>
+                    <td className="p-2">{item.batchIdentifier || 'ไม่ระบุ'}</td>
+                    <td className="p-2 text-right">{item.quantitySold}</td>
+                    <td className="p-2 text-right">
+                      {formatCurrency(item.purchasePricePerUnit)}
+                    </td>
+                    <td className="p-2 text-right">
+                      {formatCurrency(item.sellingPricePerUnit)}
+                    </td>
+                    <td className="p-2 text-right">
+                      {item.discountType === 'NONE' ? (
+                        <span className="text-gray-400">-</span>
+                      ) : item.discountType === 'PERCENT' ? (
+                        <span className="text-orange-600">{item.discountValue}%</span>
+                      ) : (
+                        <span className="text-orange-600">{formatCurrency(item.discountValue)}</span>
+                      )}
+                    </td>
+                    <td className="p-2 text-right">
+                      {item.discountType !== 'NONE' && item.discountValue > 0 ? (
+                        <span className="text-green-600 font-semibold">
+                          {formatCurrency(item.finalSellingPricePerUnit)}
+                        </span>
+                      ) : (
+                        formatCurrency(item.sellingPricePerUnit)
+                      )}
+                    </td>
+                    <td className="p-2 text-right font-semibold">
+                      {formatCurrency(item.subtotal)}
+                    </td>
+                    <td className="p-2 text-right">
+                      {formatCurrency(item.lineProfit)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
           <div className="mt-6 flex gap-2">
             <button

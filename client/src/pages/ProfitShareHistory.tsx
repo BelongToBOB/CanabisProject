@@ -57,16 +57,6 @@ const ProfitShareHistory: React.FC = () => {
     });
   };
 
-  const formatDateTime = (dateString: string): string => {
-    return new Date(dateString).toLocaleString('th-TH', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
-
   const handleViewDetail = (profitShare: ProfitShare) => {
     setSelectedProfitShare(profitShare);
   };

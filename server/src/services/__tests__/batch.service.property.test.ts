@@ -368,6 +368,7 @@ describe('BatchService Property-Based Tests', () => {
           try {
             // Arrange: Create a sales order that references this batch
             const lineProfit = (sellingPricePerUnit - purchasePricePerUnit) * quantitySold;
+            const subtotal = sellingPricePerUnit * quantitySold;
             
             const salesOrder = await prisma.salesOrder.create({
               data: {
@@ -381,6 +382,8 @@ describe('BatchService Property-Based Tests', () => {
                       batchId: createdBatch.id,
                       quantitySold: quantitySold,
                       sellingPricePerUnit: sellingPricePerUnit,
+                      finalSellingPricePerUnit: sellingPricePerUnit,
+                      subtotal: subtotal,
                       lineProfit: lineProfit,
                     },
                   ],

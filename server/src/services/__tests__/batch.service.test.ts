@@ -261,6 +261,8 @@ describe('BatchService', () => {
               batchId: batch.id,
               quantitySold: 10,
               sellingPricePerUnit: 15.00,
+              finalSellingPricePerUnit: 15.00,
+              subtotal: 150.00,
               lineProfit: 50.00,
             },
           },

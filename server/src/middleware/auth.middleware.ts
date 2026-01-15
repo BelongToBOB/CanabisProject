@@ -20,6 +20,7 @@ export const authenticate = (req: Request, res: Response, next: NextFunction): v
     const authHeader = req.headers.authorization;
     
     if (!authHeader) {
+      console.warn('[Auth] No authorization header provided for:', req.method, req.path);
       res.status(401).json({ 
         error: {
           code: 'AUTHENTICATION_ERROR',
@@ -32,6 +33,7 @@ export const authenticate = (req: Request, res: Response, next: NextFunction): v
     // Extract token from "Bearer <token>" format
     const parts = authHeader.split(' ');
     if (parts.length !== 2 || parts[0] !== 'Bearer') {
+      console.warn('[Auth] Invalid authorization header format for:', req.method, req.path);
       res.status(401).json({ 
         error: {
           code: 'AUTHENTICATION_ERROR',
@@ -51,6 +53,7 @@ export const authenticate = (req: Request, res: Response, next: NextFunction): v
 
     next();
   } catch (error) {
+    console.error('[Auth] Token verification failed for:', req.method, req.path, error instanceof Error ? error.message : 'Unknown error');
     if (error instanceof Error) {
       res.status(401).json({ 
         error: {

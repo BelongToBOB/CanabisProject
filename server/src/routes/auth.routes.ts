@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { AuthController } from '../controllers/auth.controller';
+import { authenticate } from '../middleware/auth.middleware';
 
 const router = Router();
 
@@ -15,5 +16,12 @@ router.post('/login', AuthController.login);
  * Logout user (client-side token removal)
  */
 router.post('/logout', AuthController.logout);
+
+/**
+ * GET /api/auth/verify
+ * Verify JWT token and return user info
+ * Requires authentication
+ */
+router.get('/verify', authenticate, AuthController.verify);
 
 export default router;

@@ -13,9 +13,15 @@ const apiClient: AxiosInstance = axios.create({
 // Request interceptor to inject token
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    const token = localStorage.getItem('authToken');
+    // Try authToken first, fallback to legacy token key for backward compatibility
+    const token = localStorage.getItem('authToken') || localStorage.getItem('token');
+    
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
+      console.log('[API] Attaching token to request:', config.url);
+    } else if (!token && config.url && !config.url.includes('/auth/login')) {
+      // Log warning if token is missing for protected endpoints
+      console.warn('[API] No auth token found for request:', config.url);
     }
     return config;
   },
@@ -30,11 +36,16 @@ apiClient.interceptors.response.use(
   (error: AxiosError) => {
     // Handle 401 Unauthorized - token expired or invalid
     if (error.response?.status === 401) {
+      console.warn('[API] 401 Unauthorized - clearing auth state');
+      
+      // Clear all auth-related storage
       localStorage.removeItem('authToken');
+      localStorage.removeItem('token'); // Clean up legacy key
       localStorage.removeItem('user');
       
       // Only redirect if not already on login page
       if (window.location.pathname !== '/login') {
+        console.log('[API] Redirecting to login page');
         window.location.href = '/login';
       }
     }
@@ -42,7 +53,7 @@ apiClient.interceptors.response.use(
     // Handle 403 Forbidden - insufficient permissions
     if (error.response?.status === 403) {
       // User doesn't have permission for this resource
-      console.error('Access forbidden:', error.response.data);
+      console.error('[API] 403 Forbidden - insufficient permissions:', error.response.data);
     }
     
     return Promise.reject(error);

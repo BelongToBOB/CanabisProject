@@ -34,12 +34,12 @@ const Login: React.FC = () => {
       };
 
       await login(credentials);
-      showSuccess('Login successful!');
+      showSuccess('เข้าสู่ระบบสำเร็จ!');
       navigate('/');
     } catch (err: any) {
       // Handle different error types
       const errorMessage = err.response?.status === 401
-        ? 'Invalid username or password'
+        ? 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง'
         : getErrorMessage(err);
       
       setError(errorMessage);
@@ -54,9 +54,9 @@ const Login: React.FC = () => {
       <div className="max-w-md w-full bg-white rounded-lg shadow-md p-8">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900">
-            Cannabis Shop Management
+            ระบบจัดการร้านกัญชา
           </h1>
-          <p className="mt-2 text-gray-600">Sign in to your account</p>
+          <p className="mt-2 text-gray-600">เข้าสู่ระบบบัญชีของคุณ</p>
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
@@ -66,22 +66,22 @@ const Login: React.FC = () => {
               htmlFor="username"
               className="block text-sm font-medium text-gray-700"
             >
-              Username
+              ชื่อผู้ใช้
             </label>
             <input
               id="username"
               type="text"
               {...register('username', {
-                required: 'Username is required',
+                required: 'กรุณากรอกชื่อผู้ใช้',
                 minLength: {
                   value: 3,
-                  message: 'Username must be at least 3 characters',
+                  message: 'ชื่อผู้ใช้ต้องมีอย่างน้อย 3 ตัวอักษร',
                 },
               })}
               className={`mt-1 block w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                 errors.username ? 'border-red-500' : 'border-gray-300'
               }`}
-              placeholder="Enter your username"
+              placeholder="กรอกชื่อผู้ใช้"
             />
             {errors.username && (
               <p className="mt-1 text-sm text-red-600">
@@ -96,22 +96,22 @@ const Login: React.FC = () => {
               htmlFor="password"
               className="block text-sm font-medium text-gray-700"
             >
-              Password
+              รหัสผ่าน
             </label>
             <input
               id="password"
               type="password"
               {...register('password', {
-                required: 'Password is required',
+                required: 'กรุณากรอกรหัสผ่าน',
                 minLength: {
                   value: 6,
-                  message: 'Password must be at least 6 characters',
+                  message: 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร',
                 },
               })}
               className={`mt-1 block w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                 errors.password ? 'border-red-500' : 'border-gray-300'
               }`}
-              placeholder="Enter your password"
+              placeholder="กรอกรหัสผ่าน"
             />
             {errors.password && (
               <p className="mt-1 text-sm text-red-600">
@@ -137,7 +137,7 @@ const Login: React.FC = () => {
                 : 'bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500'
             }`}
           >
-            {isSubmitting ? 'Signing in...' : 'Sign in'}
+            {isSubmitting ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบ'}
           </button>
         </form>
       </div>

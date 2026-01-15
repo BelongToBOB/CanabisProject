@@ -107,7 +107,7 @@ const Dashboard: React.FC = () => {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+        <h1 className="text-3xl font-bold text-gray-900">แดชบอร์ด</h1>
         <p className="mt-2 text-gray-600">
           ยินดีต้อนรับคุณ, {user?.username}!
         </p>
@@ -117,7 +117,7 @@ const Dashboard: React.FC = () => {
       {user?.role === 'ADMIN' && (
         <div className="mb-8">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">
-            Quick Stats
+            สถิติด่วน
           </h2>
           {loading ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -241,7 +241,7 @@ const Dashboard: React.FC = () => {
       {/* Quick Actions */}
       <div>
         <h2 className="text-lg font-semibold text-gray-900 mb-4">
-          Quick Actions
+          การดำเนินการด่วน
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {user?.role === 'ADMIN' && (
@@ -336,7 +336,7 @@ const Dashboard: React.FC = () => {
                       d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                     />
                   </svg>
-                  <h3 className="font-medium text-gray-900">Inventory Report</h3>
+                  <h3 className="font-medium text-gray-900">รายงานสต็อกสินค้า</h3>
                 </div>
                 <p className="text-sm text-gray-600">
                   รายงานสินค้าคงคลัง

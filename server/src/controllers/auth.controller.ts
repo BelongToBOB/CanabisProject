@@ -52,4 +52,40 @@ export class AuthController {
       message: 'Logout successful. Please remove the token from client storage.' 
     });
   }
+
+  /**
+   * Verify token endpoint - GET /api/auth/verify
+   * Returns the decoded user information from the JWT token
+   * Requires authentication middleware
+   */
+  static async verify(req: Request, res: Response): Promise<void> {
+    try {
+      // User is already attached to request by authenticate middleware
+      if (!req.user) {
+        res.status(401).json({ 
+          error: 'Authentication required',
+          message: 'No user found in request' 
+        });
+        return;
+      }
+
+      res.status(200).json({
+        authenticated: true,
+        user: {
+          userId: req.user.userId,
+          username: req.user.username,
+          role: req.user.role
+        }
+      });
+    } catch (error) {
+      if (error instanceof Error) {
+        res.status(500).json({ 
+          error: 'Verification failed',
+          message: error.message 
+        });
+      } else {
+        res.status(500).json({ error: 'An unexpected error occurred' });
+      }
+    }
+  }
 }

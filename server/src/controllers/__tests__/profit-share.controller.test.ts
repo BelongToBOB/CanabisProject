@@ -84,6 +84,8 @@ describe('ProfitShareController', () => {
                 batchId: batch.id,
                 quantitySold: 10,
                 sellingPricePerUnit: 20.0,
+                finalSellingPricePerUnit: 20.0,
+                subtotal: 200.0,
                 lineProfit: 100.0,
               },
             ],

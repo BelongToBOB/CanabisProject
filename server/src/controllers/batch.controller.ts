@@ -9,7 +9,7 @@ export class BatchController {
    */
   static async createBatch(req: Request, res: Response): Promise<void> {
     try {
-      const { batchIdentifier, productName, purchaseDate, purchasePricePerUnit, initialQuantity } = req.body;
+      const { batchIdentifier, productName, purchaseDate, purchasePricePerUnit, defaultSellingPricePerUnit, initialQuantity } = req.body;
 
       // Validate required fields
       if (!batchIdentifier || !productName || !purchaseDate || purchasePricePerUnit === undefined || !initialQuantity) {
@@ -29,6 +29,15 @@ export class BatchController {
         return;
       }
 
+      // Validate default selling price if provided
+      if (defaultSellingPricePerUnit !== undefined && defaultSellingPricePerUnit < 0) {
+        res.status(400).json({
+          error: 'Validation error',
+          message: 'Default selling price per unit must be non-negative',
+        });
+        return;
+      }
+
       // Validate quantity values (positive integers) - Requirement 11.5
       if (!Number.isInteger(initialQuantity) || initialQuantity <= 0) {
         res.status(400).json({
@@ -43,6 +52,7 @@ export class BatchController {
         productName,
         purchaseDate: new Date(purchaseDate),
         purchasePricePerUnit,
+        defaultSellingPricePerUnit,
         initialQuantity,
       };
 
@@ -109,6 +119,27 @@ export class BatchController {
   }
 
   /**
+   * Get available batches for sales order creation - GET /api/batches/available
+   * Admin and Staff access
+   * Returns only batches with currentQuantity > 0
+   */
+  static async getAvailableBatches(_req: Request, res: Response): Promise<void> {
+    try {
+      const batches = await BatchService.getAvailableBatches();
+      res.status(200).json(batches);
+    } catch (error) {
+      if (error instanceof Error) {
+        res.status(500).json({
+          error: 'Failed to retrieve available batches',
+          message: error.message,
+        });
+      } else {
+        res.status(500).json({ error: 'An unexpected error occurred' });
+      }
+    }
+  }
+
+  /**
    * Get batch by ID - GET /api/batches/:id
    * Admin only
    */
@@ -164,13 +195,13 @@ export class BatchController {
         return;
       }
 
-      const { productName, currentQuantity } = req.body;
+      const { productName, currentQuantity, defaultSellingPricePerUnit } = req.body;
 
       // Validate that at least one field is provided
-      if (productName === undefined && currentQuantity === undefined) {
+      if (productName === undefined && currentQuantity === undefined && defaultSellingPricePerUnit === undefined) {
         res.status(400).json({
           error: 'Validation error',
-          message: 'At least one field (productName or currentQuantity) must be provided',
+          message: 'At least one field (productName, currentQuantity, or defaultSellingPricePerUnit) must be provided',
         });
         return;
       }
@@ -186,9 +217,19 @@ export class BatchController {
         }
       }
 
+      // Validate default selling price if provided
+      if (defaultSellingPricePerUnit !== undefined && defaultSellingPricePerUnit < 0) {
+        res.status(400).json({
+          error: 'Validation error',
+          message: 'Default selling price per unit must be non-negative',
+        });
+        return;
+      }
+
       const updateData: UpdateBatchInput = {};
       if (productName !== undefined) updateData.productName = productName;
       if (currentQuantity !== undefined) updateData.currentQuantity = currentQuantity;
+      if (defaultSellingPricePerUnit !== undefined) updateData.defaultSellingPricePerUnit = defaultSellingPricePerUnit;
 
       const batch = await BatchService.updateBatch(id, updateData);
 

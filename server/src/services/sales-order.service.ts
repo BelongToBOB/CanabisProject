@@ -1,4 +1,4 @@
-import { PrismaClient, SalesOrder, SalesOrderLineItem, Batch } from '@prisma/client';
+import { PrismaClient, SalesOrder, SalesOrderLineItem, Batch, DiscountType } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 
 const prisma = new PrismaClient();
@@ -7,6 +7,8 @@ export interface LineItemInput {
   batchId: number;
   quantitySold: number;
   sellingPricePerUnit: number;
+  discountType?: DiscountType;
+  discountValue?: number;
 }
 
 export interface CreateSalesOrderInput {
@@ -30,6 +32,10 @@ export interface LineItemResponse {
   purchasePricePerUnit: number;
   quantitySold: number;
   sellingPricePerUnit: number;
+  discountType: DiscountType;
+  discountValue: number;
+  finalSellingPricePerUnit: number;
+  subtotal: number;
   lineProfit: number;
 }
 
@@ -72,6 +78,10 @@ export class SalesOrderService {
         purchasePricePerUnit: item.batch?.purchasePricePerUnit.toNumber() || 0,
         quantitySold: item.quantitySold,
         sellingPricePerUnit: item.sellingPricePerUnit.toNumber(),
+        discountType: item.discountType,
+        discountValue: item.discountValue.toNumber(),
+        finalSellingPricePerUnit: item.finalSellingPricePerUnit.toNumber(),
+        subtotal: item.subtotal.toNumber(),
         lineProfit: item.lineProfit.toNumber(),
       })),
     };
@@ -106,6 +116,30 @@ export class SalesOrderService {
       if (item.sellingPricePerUnit < 0) {
         throw new Error('Selling price per unit must be non-negative');
       }
+
+      // Validate discount values
+      const discountType = item.discountType || 'NONE';
+      const discountValue = item.discountValue || 0;
+
+      if (discountValue < 0) {
+        throw new Error('Discount value must be non-negative');
+      }
+
+      if (discountType === 'PERCENT' && discountValue > 100) {
+        throw new Error('Percentage discount cannot exceed 100%');
+      }
+
+      // Calculate final price and validate it's not negative
+      let finalPrice = item.sellingPricePerUnit;
+      if (discountType === 'PERCENT') {
+        finalPrice = item.sellingPricePerUnit * (1 - discountValue / 100);
+      } else if (discountType === 'AMOUNT') {
+        finalPrice = item.sellingPricePerUnit - discountValue;
+      }
+
+      if (finalPrice < 0) {
+        throw new Error('Final selling price cannot be negative after discount');
+      }
     }
 
     // Check batch existence and stock availability
@@ -135,14 +169,19 @@ export class SalesOrderService {
   }
 
   /**
-   * Calculate profit for line items
+   * Calculate profit for line items with discount support
    * Requirements: 5.1
    * @param lineItems - Line items with batch information
-   * @returns Array of line items with calculated profit
+   * @returns Array of line items with calculated profit, final price, and subtotal
    */
   private static async calculateLineItemProfits(
     lineItems: LineItemInput[]
-  ): Promise<Array<LineItemInput & { lineProfit: number; purchasePricePerUnit: number }>> {
+  ): Promise<Array<LineItemInput & { 
+    lineProfit: number; 
+    purchasePricePerUnit: number;
+    finalSellingPricePerUnit: number;
+    subtotal: number;
+  }>> {
     const batchIds = lineItems.map(item => item.batchId);
     const batches = await prisma.batch.findMany({
       where: {
@@ -159,13 +198,27 @@ export class SalesOrderService {
       }
 
       const purchasePricePerUnit = batch.purchasePricePerUnit.toNumber();
-      // Requirement 5.1: lineProfit = (sellingPrice - purchasePrice) * quantity
-      const lineProfit = (item.sellingPricePerUnit - purchasePricePerUnit) * item.quantitySold;
+      const discountType = item.discountType || 'NONE';
+      const discountValue = item.discountValue || 0;
+
+      // Calculate final selling price after discount
+      let finalSellingPricePerUnit = item.sellingPricePerUnit;
+      if (discountType === 'PERCENT') {
+        finalSellingPricePerUnit = item.sellingPricePerUnit * (1 - discountValue / 100);
+      } else if (discountType === 'AMOUNT') {
+        finalSellingPricePerUnit = item.sellingPricePerUnit - discountValue;
+      }
+
+      // Calculate subtotal and profit based on final price
+      const subtotal = finalSellingPricePerUnit * item.quantitySold;
+      const lineProfit = (finalSellingPricePerUnit - purchasePricePerUnit) * item.quantitySold;
 
       return {
         ...item,
         lineProfit,
         purchasePricePerUnit,
+        finalSellingPricePerUnit,
+        subtotal,
       };
     });
   }
@@ -211,7 +264,7 @@ export class SalesOrderService {
         },
       });
 
-      // Create line items
+      // Create line items with discount information
       await Promise.all(
         lineItemsWithProfit.map(item =>
           tx.salesOrderLineItem.create({
@@ -220,6 +273,10 @@ export class SalesOrderService {
               batchId: item.batchId,
               quantitySold: item.quantitySold,
               sellingPricePerUnit: new Decimal(item.sellingPricePerUnit),
+              discountType: item.discountType || 'NONE',
+              discountValue: new Decimal(item.discountValue || 0),
+              finalSellingPricePerUnit: new Decimal(item.finalSellingPricePerUnit),
+              subtotal: new Decimal(item.subtotal),
               lineProfit: new Decimal(item.lineProfit),
             },
           })

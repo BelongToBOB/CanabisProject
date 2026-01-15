@@ -8,6 +8,7 @@ interface Batch {
   productName: string;
   currentQuantity: number;
   purchasePricePerUnit: number;
+  defaultSellingPricePerUnit: number;
 }
 
 interface LineItem {
@@ -15,12 +16,15 @@ interface LineItem {
   batchId: string;
   quantitySold: string;
   sellingPricePerUnit: string;
+  discountType: 'NONE' | 'PERCENT' | 'AMOUNT';
+  discountValue: string;
 }
 
 interface LineItemError {
   batchId?: string;
   quantitySold?: string;
   sellingPricePerUnit?: string;
+  discountValue?: string;
 }
 
 const SalesOrderCreate: React.FC = () => {
@@ -34,7 +38,7 @@ const SalesOrderCreate: React.FC = () => {
   // Form state
   const [customerName, setCustomerName] = useState('');
   const [lineItems, setLineItems] = useState<LineItem[]>([
-    { id: crypto.randomUUID(), batchId: '', quantitySold: '', sellingPricePerUnit: '' }
+    { id: crypto.randomUUID(), batchId: '', quantitySold: '', sellingPricePerUnit: '', discountType: 'NONE', discountValue: '0' }
   ]);
   const [lineItemErrors, setLineItemErrors] = useState<Record<string, LineItemError>>({});
 
@@ -47,12 +51,34 @@ const SalesOrderCreate: React.FC = () => {
     try {
       setIsLoadingBatches(true);
       setError(null);
-      const response = await apiClient.get<Batch[]>('/batches');
-      // Filter out depleted batches (currentQuantity > 0)
-      const availableBatches = response.data.filter(batch => batch.currentQuantity > 0);
-      setBatches(availableBatches);
+      // Use the dedicated endpoint for available batches (accessible by both ADMIN and STAFF)
+      const response = await apiClient.get<Batch[]>('/batches/available');
+      // The backend already filters for currentQuantity > 0, so no need to filter here
+      setBatches(response.data);
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to fetch batches');
+      // Show detailed error message from server
+      let errorMessage = 'ไม่สามารถดึงข้อมูลสินค้าได้';
+      
+      if (err.response) {
+        // Server responded with error status
+        if (err.response.status === 401) {
+          errorMessage = 'ต้องการการยืนยันตัวตน กรุณาเข้าสู่ระบบอีกครั้ง';
+        } else if (err.response.status === 403) {
+          errorMessage = 'การเข้าถึงถูกปฏิเสธ คุณไม่มีสิทธิ์ดูสินค้า';
+        } else if (err.response.data?.message) {
+          errorMessage = err.response.data.message;
+        } else if (err.response.data?.error) {
+          errorMessage = err.response.data.error;
+        }
+      } else if (err.request) {
+        // Request was made but no response received
+        errorMessage = 'ข้อผิดพลาดเครือข่าย กรุณาตรวจสอบการเชื่อมต่อของคุณ';
+      } else {
+        // Something else happened
+        errorMessage = err.message || 'ไม่สามารถดึงข้อมูลสินค้าได้';
+      }
+      
+      setError(errorMessage);
     } finally {
       setIsLoadingBatches(false);
     }
@@ -61,7 +87,7 @@ const SalesOrderCreate: React.FC = () => {
   const addLineItem = () => {
     setLineItems([
       ...lineItems,
-      { id: crypto.randomUUID(), batchId: '', quantitySold: '', sellingPricePerUnit: '' }
+      { id: crypto.randomUUID(), batchId: '', quantitySold: '', sellingPricePerUnit: '', discountType: 'NONE', discountValue: '0' }
     ]);
   };
 
@@ -78,9 +104,23 @@ const SalesOrderCreate: React.FC = () => {
   };
 
   const updateLineItem = (id: string, field: keyof LineItem, value: string) => {
-    setLineItems(lineItems.map(item =>
-      item.id === id ? { ...item, [field]: value } : item
-    ));
+    setLineItems(lineItems.map(item => {
+      if (item.id === id) {
+        const updatedItem = { ...item, [field]: value };
+        
+        // Auto-fill selling price when batch is selected
+        if (field === 'batchId' && value) {
+          const batch = batches.find(b => b.id === parseInt(value, 10));
+          if (batch && batch.defaultSellingPricePerUnit > 0) {
+            updatedItem.sellingPricePerUnit = batch.defaultSellingPricePerUnit.toString();
+          }
+        }
+        
+        return updatedItem;
+      }
+      return item;
+    }));
+    
     // Clear error for this field when user starts typing
     if (lineItemErrors[id]?.[field as keyof LineItemError]) {
       setLineItemErrors(prev => ({
@@ -97,17 +137,37 @@ const SalesOrderCreate: React.FC = () => {
     return batches.find(b => b.id === parseInt(batchId, 10));
   };
 
+  const calculateFinalPrice = (item: LineItem): number => {
+    const sellingPrice = parseFloat(item.sellingPricePerUnit);
+    if (isNaN(sellingPrice)) return 0;
+
+    const discountValue = parseFloat(item.discountValue) || 0;
+    
+    if (item.discountType === 'PERCENT') {
+      return sellingPrice * (1 - discountValue / 100);
+    } else if (item.discountType === 'AMOUNT') {
+      return Math.max(0, sellingPrice - discountValue);
+    }
+    return sellingPrice;
+  };
+
   const calculateLineProfit = (item: LineItem): number => {
     const batch = getBatchById(item.batchId);
-    if (!batch || !item.quantitySold || !item.sellingPricePerUnit) {
+    if (!batch || !item.quantitySold) {
       return 0;
     }
     const quantity = parseInt(item.quantitySold, 10);
-    const sellingPrice = parseFloat(item.sellingPricePerUnit);
-    if (isNaN(quantity) || isNaN(sellingPrice)) {
+    if (isNaN(quantity)) {
       return 0;
     }
-    return (sellingPrice - batch.purchasePricePerUnit) * quantity;
+    const finalPrice = calculateFinalPrice(item);
+    return (finalPrice - batch.purchasePricePerUnit) * quantity;
+  };
+
+  const calculateLineSubtotal = (item: LineItem): number => {
+    const quantity = parseInt(item.quantitySold, 10);
+    if (isNaN(quantity)) return 0;
+    return calculateFinalPrice(item) * quantity;
   };
 
   const calculateTotalProfit = (): number => {
@@ -115,68 +175,115 @@ const SalesOrderCreate: React.FC = () => {
   };
 
   const validateForm = (): boolean => {
+    console.log('[SalesOrder] Starting form validation');
+    console.log('[SalesOrder] Line items to validate:', lineItems.length);
+    
     const errors: Record<string, LineItemError> = {};
     let isValid = true;
 
-    lineItems.forEach(item => {
+    lineItems.forEach((item, index) => {
+      console.log(`[SalesOrder] Validating line item ${index + 1}:`, item);
       const itemErrors: LineItemError = {};
 
       // Validate batch selection
       if (!item.batchId) {
-        itemErrors.batchId = 'Please select a batch';
+        itemErrors.batchId = 'กรุณาเลือกสินค้า';
         isValid = false;
+        console.log(`[SalesOrder] Line ${index + 1}: No batch selected`);
       } else {
         const batch = getBatchById(item.batchId);
         if (!batch) {
-          itemErrors.batchId = 'Selected batch does not exist';
+          itemErrors.batchId = 'สินค้าที่เลือกไม่มีอยู่';
           isValid = false;
+          console.log(`[SalesOrder] Line ${index + 1}: Batch not found:`, item.batchId);
         }
       }
 
       // Validate quantity sold
       if (!item.quantitySold) {
-        itemErrors.quantitySold = 'Quantity is required';
+        itemErrors.quantitySold = 'กรุณากรอกจำนวน';
         isValid = false;
+        console.log(`[SalesOrder] Line ${index + 1}: No quantity`);
       } else {
         const quantity = parseInt(item.quantitySold, 10);
         if (isNaN(quantity) || quantity <= 0 || !Number.isInteger(quantity)) {
-          itemErrors.quantitySold = 'Quantity must be a positive integer';
+          itemErrors.quantitySold = 'จำนวนต้องเป็นจำนวนเต็มบวก';
           isValid = false;
+          console.log(`[SalesOrder] Line ${index + 1}: Invalid quantity:`, item.quantitySold);
         } else {
           const batch = getBatchById(item.batchId);
           if (batch && quantity > batch.currentQuantity) {
-            itemErrors.quantitySold = `Insufficient stock (available: ${batch.currentQuantity})`;
+            itemErrors.quantitySold = `สต็อกไม่เพียงพอ (มีอยู่: ${batch.currentQuantity})`;
             isValid = false;
+            console.log(`[SalesOrder] Line ${index + 1}: Insufficient stock. Requested:`, quantity, 'Available:', batch.currentQuantity);
           }
         }
       }
 
       // Validate selling price
       if (!item.sellingPricePerUnit) {
-        itemErrors.sellingPricePerUnit = 'Selling price is required';
+        itemErrors.sellingPricePerUnit = 'กรุณากรอกราคาขาย';
         isValid = false;
+        console.log(`[SalesOrder] Line ${index + 1}: No selling price`);
       } else {
         const price = parseFloat(item.sellingPricePerUnit);
         if (isNaN(price) || price < 0) {
-          itemErrors.sellingPricePerUnit = 'Selling price must be a non-negative number';
+          itemErrors.sellingPricePerUnit = 'ราคาขายต้องเป็นตัวเลขที่ไม่ติดลบ';
           isValid = false;
+          console.log(`[SalesOrder] Line ${index + 1}: Invalid price:`, item.sellingPricePerUnit);
+        }
+      }
+
+      // Validate discount
+      if (item.discountType !== 'NONE') {
+        const discountValue = parseFloat(item.discountValue);
+        if (isNaN(discountValue) || discountValue < 0) {
+          itemErrors.discountValue = 'ส่วนลดต้องเป็นตัวเลขที่ไม่ติดลบ';
+          isValid = false;
+          console.log(`[SalesOrder] Line ${index + 1}: Invalid discount value:`, item.discountValue);
+        } else if (item.discountType === 'PERCENT' && discountValue > 100) {
+          itemErrors.discountValue = 'ส่วนลดเปอร์เซ็นต์ไม่สามารถเกิน 100%';
+          isValid = false;
+          console.log(`[SalesOrder] Line ${index + 1}: Discount percent > 100:`, discountValue);
+        } else if (item.discountType === 'AMOUNT') {
+          const sellingPrice = parseFloat(item.sellingPricePerUnit);
+          if (!isNaN(sellingPrice) && discountValue > sellingPrice) {
+            itemErrors.discountValue = 'ส่วนลดไม่สามารถเกินราคาขาย';
+            isValid = false;
+            console.log(`[SalesOrder] Line ${index + 1}: Discount amount > price. Discount:`, discountValue, 'Price:', sellingPrice);
+          }
         }
       }
 
       if (Object.keys(itemErrors).length > 0) {
         errors[item.id] = itemErrors;
+        console.log(`[SalesOrder] Line ${index + 1} has errors:`, itemErrors);
+      } else {
+        console.log(`[SalesOrder] Line ${index + 1}: Valid`);
       }
     });
 
     setLineItemErrors(errors);
+    console.log('[SalesOrder] Validation complete. isValid:', isValid);
+    console.log('[SalesOrder] Total errors:', Object.keys(errors).length);
+    
     return isValid;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!validateForm()) {
-      setError('Please fix the validation errors before submitting');
+    console.log('[SalesOrder] Form submitted');
+    console.log('[SalesOrder] Customer name:', customerName);
+    console.log('[SalesOrder] Line items count:', lineItems.length);
+
+    // Validate form
+    const isValid = validateForm();
+    console.log('[SalesOrder] Validation result:', isValid);
+    
+    if (!isValid) {
+      console.error('[SalesOrder] Validation failed, errors:', lineItemErrors);
+      setError('กรุณาแก้ไขข้อผิดพลาดในการตรวจสอบก่อนส่ง');
       return;
     }
 
@@ -184,22 +291,32 @@ const SalesOrderCreate: React.FC = () => {
       setIsSubmitting(true);
       setError(null);
 
+      // Prepare order data with proper type casting
       const orderData = {
         customerName: customerName.trim() || undefined,
         lineItems: lineItems.map(item => ({
-          batchId: parseInt(item.batchId, 10),
-          quantitySold: parseInt(item.quantitySold, 10),
-          sellingPricePerUnit: parseFloat(item.sellingPricePerUnit)
+          batchId: Number(item.batchId),
+          quantitySold: Number(item.quantitySold),
+          sellingPricePerUnit: Number(item.sellingPricePerUnit),
+          discountType: item.discountType,
+          discountValue: Number(item.discountValue) || 0
         }))
       };
 
-      await apiClient.post('/sales-orders', orderData);
-      setSuccessMessage('Sales order created successfully!');
+      console.log('[SalesOrder] Sending order data:', JSON.stringify(orderData, null, 2));
+      console.log('[SalesOrder] POST /api/sales-orders');
+
+      const response = await apiClient.post('/sales-orders', orderData);
+      
+      console.log('[SalesOrder] Response status:', response.status);
+      console.log('[SalesOrder] Response data:', response.data);
+      
+      setSuccessMessage('สร้างคำสั่งขายสำเร็จ!');
       
       // Reset form
       setCustomerName('');
       setLineItems([
-        { id: crypto.randomUUID(), batchId: '', quantitySold: '', sellingPricePerUnit: '' }
+        { id: crypto.randomUUID(), batchId: '', quantitySold: '', sellingPricePerUnit: '', discountType: 'NONE', discountValue: '0' }
       ]);
       setLineItemErrors({});
       
@@ -209,10 +326,36 @@ const SalesOrderCreate: React.FC = () => {
       // Clear success message after 5 seconds
       setTimeout(() => setSuccessMessage(null), 5000);
     } catch (err: any) {
-      const errorMessage = err.response?.data?.message || 'Failed to create sales order';
+      console.error('[SalesOrder] Submit failed');
+      console.error('[SalesOrder] Error object:', err);
+      console.error('[SalesOrder] Error response:', err.response);
+      console.error('[SalesOrder] Error response status:', err.response?.status);
+      console.error('[SalesOrder] Error response data:', err.response?.data);
+      console.error('[SalesOrder] Error message:', err.message);
+      
+      let errorMessage = 'ไม่สามารถสร้างคำสั่งขายได้';
+      
+      if (err.response) {
+        // Server responded with error
+        if (err.response.status === 401) {
+          errorMessage = 'ต้องการการยืนยันตัวตน กรุณาเข้าสู่ระบบอีกครั้ง';
+        } else if (err.response.status === 403) {
+          errorMessage = 'การเข้าถึงถูกปฏิเสธ คุณไม่มีสิทธิ์สร้างใบสั่งขาย';
+        } else if (err.response.data?.message) {
+          errorMessage = err.response.data.message;
+        } else if (err.response.data?.error) {
+          errorMessage = err.response.data.error;
+        }
+      } else if (err.request) {
+        // Request was made but no response
+        errorMessage = 'ข้อผิดพลาดเครือข่าย กรุณาตรวจสอบการเชื่อมต่อของคุณ';
+      }
+      
+      console.error('[SalesOrder] Final error message:', errorMessage);
       setError(errorMessage);
     } finally {
       setIsSubmitting(false);
+      console.log('[SalesOrder] Submit complete, isSubmitting:', false);
     }
   };
 
@@ -225,7 +368,7 @@ const SalesOrderCreate: React.FC = () => {
       <div className="min-h-screen flex items-center justify-center bg-gray-100">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading batches...</p>
+          <p className="mt-4 text-gray-600">กำลังโหลดสินค้า...</p>
         </div>
       </div>
     );
@@ -277,19 +420,19 @@ const SalesOrderCreate: React.FC = () => {
           {/* Sales Order Form */}
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Customer Name */}
-            <div>
-              <label htmlFor="customerName" className="block text-sm font-medium text-gray-700">
-                ชื่อลูกค้า (ไม่บังคับ)
-              </label>
-              <input
-                type="text"
-                id="customerName"
-                value={customerName}
-                onChange={(e) => setCustomerName(e.target.value)}
-                className="mt-1 block w-full md:w-1/2 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Enter customer name"
-              />
-            </div>
+                <div>
+                  <label htmlFor="customerName" className="block text-sm font-medium text-gray-700">
+                    ชื่อลูกค้า (ไม่บังคับ)
+                  </label>
+                  <input
+                    type="text"
+                    id="customerName"
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                    className="mt-1 block w-full md:w-1/2 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="กรอกชื่อลูกค้า"
+                  />
+                </div>
 
             {/* Line Items */}
             <div>
@@ -354,7 +497,7 @@ const SalesOrderCreate: React.FC = () => {
                           )}
                           {batch && (
                             <p className="mt-1 text-sm text-gray-600">
-                              Available: {batch.currentQuantity} units | Cost: {formatCurrency(batch.purchasePricePerUnit)}/unit
+                              มีอยู่: {batch.currentQuantity} หน่วย | ทุน: {formatCurrency(batch.purchasePricePerUnit)}/หน่วย
                             </p>
                           )}
                         </div>
@@ -384,7 +527,7 @@ const SalesOrderCreate: React.FC = () => {
                         {/* Selling Price */}
                         <div>
                           <label htmlFor={`price-${item.id}`} className="block text-sm font-medium text-gray-700">
-                            ราคาขาย (฿/ขีด) *
+                            ราคาขาย (฿/กรัม) *
                           </label>
                           <input
                             type="number"
@@ -396,22 +539,105 @@ const SalesOrderCreate: React.FC = () => {
                             className={`mt-1 block w-full px-3 py-2 border ${
                               itemErrors.sellingPricePerUnit ? 'border-red-300' : 'border-gray-300'
                             } rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500`}
-                            placeholder="0.00"
+                            placeholder={batch ? `Cost ฿${batch.purchasePricePerUnit}/unit` : "0.00"}
                           />
+                          {batch && (
+                            <p className="mt-1 text-sm text-gray-600">
+                              ทุน ฿{batch.purchasePricePerUnit}/unit
+                            </p>
+                          )}
                           {itemErrors.sellingPricePerUnit && (
                             <p className="mt-1 text-sm text-red-600">{itemErrors.sellingPricePerUnit}</p>
                           )}
                         </div>
                       </div>
 
-                      {/* Line Item Profit Preview */}
+                      {/* Discount Section */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                        {/* Discount Type */}
+                        <div>
+                          <label htmlFor={`discount-type-${item.id}`} className="block text-sm font-medium text-gray-700">
+                            ประเภทส่วนลด
+                          </label>
+                          <select
+                            id={`discount-type-${item.id}`}
+                            value={item.discountType}
+                            onChange={(e) => {
+                              updateLineItem(item.id, 'discountType', e.target.value);
+                              // Reset discount value when changing type
+                              if (e.target.value === 'NONE') {
+                                updateLineItem(item.id, 'discountValue', '0');
+                              }
+                            }}
+                            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                          >
+                            <option value="NONE">ไม่มีส่วนลด</option>
+                            <option value="PERCENT">ส่วนลดเปอร์เซ็นต์ (%)</option>
+                            <option value="AMOUNT">ส่วนลดจำนวนเงิน (฿)</option>
+                          </select>
+                        </div>
+
+                        {/* Discount Value */}
+                        {item.discountType !== 'NONE' && (
+                          <div>
+                            <label htmlFor={`discount-value-${item.id}`} className="block text-sm font-medium text-gray-700">
+                              {item.discountType === 'PERCENT' ? 'ส่วนลด (%)' : 'ส่วนลด (฿)'}
+                            </label>
+                            <input
+                              type="number"
+                              id={`discount-value-${item.id}`}
+                              value={item.discountValue}
+                              onChange={(e) => updateLineItem(item.id, 'discountValue', e.target.value)}
+                              step={item.discountType === 'PERCENT' ? '0.01' : '0.01'}
+                              min="0"
+                              max={item.discountType === 'PERCENT' ? '100' : undefined}
+                              className={`mt-1 block w-full px-3 py-2 border ${
+                                itemErrors.discountValue ? 'border-red-300' : 'border-gray-300'
+                              } rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500`}
+                              placeholder="0.00"
+                            />
+                            {itemErrors.discountValue && (
+                              <p className="mt-1 text-sm text-red-600">{itemErrors.discountValue}</p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Line Item Preview with Discount */}
                       {item.batchId && item.quantitySold && item.sellingPricePerUnit && (
                         <div className="mt-3 p-3 bg-blue-50 rounded-md">
-                          <p className="text-sm font-medium text-blue-900">
-                            Line Profit: <span className={lineProfit >= 0 ? 'text-green-700' : 'text-red-700'}>
-                              {formatCurrency(lineProfit)}
-                            </span>
-                          </p>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                            <div>
+                              <p className="text-gray-600">ราคาเดิม:</p>
+                              <p className="font-semibold">{formatCurrency(parseFloat(item.sellingPricePerUnit))}</p>
+                            </div>
+                            {item.discountType !== 'NONE' && parseFloat(item.discountValue) > 0 && (
+                              <>
+                                <div>
+                                  <p className="text-gray-600">ส่วนลด:</p>
+                                  <p className="font-semibold text-orange-600">
+                                    {item.discountType === 'PERCENT' 
+                                      ? `${item.discountValue}%` 
+                                      : formatCurrency(parseFloat(item.discountValue))}
+                                  </p>
+                                </div>
+                                <div>
+                                  <p className="text-gray-600">ราคาหลังลด:</p>
+                                  <p className="font-semibold text-green-600">{formatCurrency(calculateFinalPrice(item))}</p>
+                                </div>
+                              </>
+                            )}
+                            <div>
+                              <p className="text-gray-600">ยอดรวม:</p>
+                              <p className="font-semibold">{formatCurrency(calculateLineSubtotal(item))}</p>
+                            </div>
+                            <div>
+                              <p className="text-gray-600">กำไร:</p>
+                              <p className={`font-semibold ${lineProfit >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                                {formatCurrency(lineProfit)}
+                              </p>
+                            </div>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -441,7 +667,7 @@ const SalesOrderCreate: React.FC = () => {
                 disabled={isSubmitting || batches.length === 0}
                 className="px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium"
               >
-                {isSubmitting ? 'Creating Order...' : 'สร้างใบสั่งขาย'}
+                {isSubmitting ? 'กำลังสร้างคำสั่งขาย...' : 'สร้างใบสั่งขาย'}
               </button>
               <button
                 type="button"

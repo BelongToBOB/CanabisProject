@@ -10,6 +10,7 @@ interface Batch {
   productName: string;
   purchaseDate: string;
   purchasePricePerUnit: number;
+  defaultSellingPricePerUnit: number;
   initialQuantity: number;
   currentQuantity: number;
   createdAt: string;
@@ -21,6 +22,7 @@ interface BatchFormData {
   productName: string;
   purchaseDate: string;
   purchasePricePerUnit: string;
+  defaultSellingPricePerUnit: string;
   initialQuantity: string;
 }
 
@@ -42,6 +44,7 @@ const BatchManagement: React.FC = () => {
     productName: '',
     purchaseDate: '',
     purchasePricePerUnit: '',
+    defaultSellingPricePerUnit: '',
     initialQuantity: '',
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
@@ -76,9 +79,9 @@ const BatchManagement: React.FC = () => {
       const response = await apiClient.get<Batch[]>('/batches');
       setBatches(response.data);
     } catch (err: any) {
-      const errorMsg = err.response?.data?.message || 'Failed to fetch batches';
+      const errorMsg = err.response?.data?.message || 'ไม่สามารถดึงข้อมูลสินค้าได้';
       setError(errorMsg);
-      handleError(err, 'Failed to fetch batches');
+      handleError(err, 'ไม่สามารถดึงข้อมูลสินค้าได้');
     } finally {
       setIsLoading(false);
     }
@@ -88,32 +91,32 @@ const BatchManagement: React.FC = () => {
     const errors: Record<string, string> = {};
     
     if (!formData.batchIdentifier.trim()) {
-      errors.batchIdentifier = 'Batch identifier is required';
+      errors.batchIdentifier = 'กรุณากรอกรหัสสินค้า';
     }
     
     if (!formData.productName.trim()) {
-      errors.productName = 'Product name is required';
+      errors.productName = 'กรุณากรอกชื่อสินค้า';
     }
     
     if (!formData.purchaseDate) {
-      errors.purchaseDate = 'Purchase date is required';
+      errors.purchaseDate = 'กรุณาเลือกวันที่ซื้อ';
     }
     
     if (!formData.purchasePricePerUnit) {
-      errors.purchasePricePerUnit = 'Purchase price is required';
+      errors.purchasePricePerUnit = 'กรุณากรอกราคาทุน';
     } else {
       const price = parseFloat(formData.purchasePricePerUnit);
       if (isNaN(price) || price < 0) {
-        errors.purchasePricePerUnit = 'Purchase price must be a non-negative number';
+        errors.purchasePricePerUnit = 'ราคาทุนต้องเป็นตัวเลขที่ไม่ติดลบ';
       }
     }
     
     if (!formData.initialQuantity) {
-      errors.initialQuantity = 'Initial quantity is required';
+      errors.initialQuantity = 'กรุณากรอกจำนวนที่ซื้อ';
     } else {
       const quantity = parseInt(formData.initialQuantity, 10);
       if (isNaN(quantity) || quantity <= 0 || !Number.isInteger(quantity)) {
-        errors.initialQuantity = 'Initial quantity must be a positive integer';
+        errors.initialQuantity = 'จำนวนที่ซื้อต้องเป็นจำนวนเต็มบวก';
       }
     }
     
@@ -125,7 +128,7 @@ const BatchManagement: React.FC = () => {
     e.preventDefault();
     
     if (!validateForm()) {
-      showError('Please fix the validation errors');
+      showError('กรุณาแก้ไขข้อผิดพลาดในการตรวจสอบ');
       return;
     }
 
@@ -136,18 +139,19 @@ const BatchManagement: React.FC = () => {
         productName: formData.productName,
         purchaseDate: formData.purchaseDate,
         purchasePricePerUnit: parseFloat(formData.purchasePricePerUnit),
+        defaultSellingPricePerUnit: formData.defaultSellingPricePerUnit ? parseFloat(formData.defaultSellingPricePerUnit) : 0,
         initialQuantity: parseInt(formData.initialQuantity, 10),
       };
       
       await apiClient.post('/batches', batchData);
-      showSuccess('Batch created successfully');
+      showSuccess('สร้างสินค้าสำเร็จ');
       setShowCreateForm(false);
       resetForm();
       fetchBatches();
     } catch (err: any) {
-      const errorMsg = err.response?.data?.message || 'Failed to create batch';
+      const errorMsg = err.response?.data?.message || 'ไม่สามารถสร้างสินค้าได้';
       setError(errorMsg);
-      handleError(err, 'Failed to create batch');
+      handleError(err, 'ไม่สามารถสร้างสินค้าได้');
     }
   };
 
@@ -157,14 +161,14 @@ const BatchManagement: React.FC = () => {
     try {
       setError(null);
       await apiClient.delete(`/batches/${batchToDelete.id}`);
-      showSuccess('Batch deleted successfully');
+      showSuccess('ลบสินค้าสำเร็จ');
       setBatchToDelete(null);
       setSelectedBatch(null);
       fetchBatches();
     } catch (err: any) {
-      const errorMessage = err.response?.data?.message || 'Failed to delete batch';
+      const errorMessage = err.response?.data?.message || 'ไม่สามารถลบสินค้าได้';
       setError(errorMessage);
-      handleError(err, 'Failed to delete batch');
+      handleError(err, 'ไม่สามารถลบสินค้าได้');
       setBatchToDelete(null);
     }
   };
@@ -175,6 +179,7 @@ const BatchManagement: React.FC = () => {
       productName: '',
       purchaseDate: '',
       purchasePricePerUnit: '',
+      defaultSellingPricePerUnit: '',
       initialQuantity: '',
     });
     setFormErrors({});
@@ -202,7 +207,7 @@ const BatchManagement: React.FC = () => {
   };
 
   if (isLoading) {
-    return <LoadingSpinner fullScreen message="Loading batches..." />;
+    return <LoadingSpinner fullScreen message="กำลังโหลดสินค้า..." />;
   }
 
   return (
@@ -239,7 +244,7 @@ const BatchManagement: React.FC = () => {
           {/* Create Batch Form */}
           {showCreateForm && (
             <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">Create New Batch</h2>
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">สร้างสินค้าใหม่</h2>
               <form onSubmit={handleCreateBatch} className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
@@ -303,7 +308,7 @@ const BatchManagement: React.FC = () => {
 
                   <div>
                     <label htmlFor="purchasePricePerUnit" className="block text-sm font-medium text-gray-700">
-                      ราคา/ขีด
+                      ราคาทุน/กรัม
                     </label>
                     <input
                       type="number"
@@ -320,6 +325,28 @@ const BatchManagement: React.FC = () => {
                     />
                     {formErrors.purchasePricePerUnit && (
                       <p className="mt-1 text-sm text-red-600">{formErrors.purchasePricePerUnit}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label htmlFor="defaultSellingPricePerUnit" className="block text-sm font-medium text-gray-700">
+                      ราคาขาย/กรัม (ค่าเริ่มต้น)
+                    </label>
+                    <input
+                      type="number"
+                      id="defaultSellingPricePerUnit"
+                      name="defaultSellingPricePerUnit"
+                      value={formData.defaultSellingPricePerUnit}
+                      onChange={handleInputChange}
+                      step="0.01"
+                      min="0"
+                      className={`mt-1 block w-full px-3 py-2 border ${
+                        formErrors.defaultSellingPricePerUnit ? 'border-red-300' : 'border-gray-300'
+                      } rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500`}
+                      placeholder="0.00"
+                    />
+                    {formErrors.defaultSellingPricePerUnit && (
+                      <p className="mt-1 text-sm text-red-600">{formErrors.defaultSellingPricePerUnit}</p>
                     )}
                   </div>
 
@@ -371,7 +398,7 @@ const BatchManagement: React.FC = () => {
           {/* Filter Section */}
           <div className="mb-6">
             <label htmlFor="productNameFilter" className="block text-sm font-medium text-gray-700 mb-2">
-              Filter by Product Name
+              ค้นหารายการสินค้า
             </label>
             <input
               type="text"
@@ -389,25 +416,25 @@ const BatchManagement: React.FC = () => {
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Batch ID
+                    รหัสสินค้า
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Product Name
+                    ชื่อสินค้า
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Current Qty
+                    จำนวนปัจจุบัน
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Initial Qty
+                    จำนวนเริ่มต้น
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Purchase Price
+                    ราคาทุน
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Purchase Date
+                    วันที่ซื้อ
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
+                    การดำเนินการ
                   </th>
                 </tr>
               </thead>
@@ -415,7 +442,7 @@ const BatchManagement: React.FC = () => {
                 {filteredBatches.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
-                      {productNameFilter ? 'No batches found matching the filter' : 'No batches found'}
+                      {productNameFilter ? 'ไม่พบสินค้าที่ตรงกับการค้นหา' : 'ไม่พบสินค้า'}
                     </td>
                   </tr>
                 ) : (
@@ -430,7 +457,7 @@ const BatchManagement: React.FC = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         <span className={batch.currentQuantity === 0 ? 'text-red-600 font-semibold' : ''}>
                           {batch.currentQuantity}
-                          {batch.currentQuantity === 0 && ' (Depleted)'}
+                          {batch.currentQuantity === 0 && ' (หมด)'}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -447,13 +474,13 @@ const BatchManagement: React.FC = () => {
                           onClick={() => setSelectedBatch(batch)}
                           className="text-blue-600 hover:text-blue-900 mr-4"
                         >
-                          View Details
+                          ดูรายละเอียด
                         </button>
                         <button
                           onClick={() => setBatchToDelete(batch)}
                           className="text-red-600 hover:text-red-900"
                         >
-                          Delete
+                          ลบ
                         </button>
                       </td>
                     </tr>
@@ -471,7 +498,7 @@ const BatchManagement: React.FC = () => {
           <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-2xl font-semibold text-gray-900">
-                Batch Details
+                รายละเอียดสินค้า
               </h3>
               <button
                 onClick={() => setSelectedBatch(null)}
@@ -486,36 +513,36 @@ const BatchManagement: React.FC = () => {
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-sm font-medium text-gray-500">Batch Identifier</p>
+                  <p className="text-sm font-medium text-gray-500">รหัสสินค้า</p>
                   <p className="mt-1 text-lg text-gray-900">{selectedBatch.batchIdentifier}</p>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-gray-500">Product Name</p>
+                  <p className="text-sm font-medium text-gray-500">ชื่อสินค้า</p>
                   <p className="mt-1 text-lg text-gray-900">{selectedBatch.productName}</p>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-sm font-medium text-gray-500">Current Quantity</p>
+                  <p className="text-sm font-medium text-gray-500">จำนวนปัจจุบัน</p>
                   <p className={`mt-1 text-lg ${selectedBatch.currentQuantity === 0 ? 'text-red-600 font-semibold' : 'text-gray-900'}`}>
-                    {selectedBatch.currentQuantity} units
-                    {selectedBatch.currentQuantity === 0 && ' (Depleted)'}
+                    {selectedBatch.currentQuantity} หน่วย
+                    {selectedBatch.currentQuantity === 0 && ' (หมด)'}
                   </p>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-gray-500">Initial Quantity</p>
-                  <p className="mt-1 text-lg text-gray-900">{selectedBatch.initialQuantity} units</p>
+                  <p className="text-sm font-medium text-gray-500">จำนวนเริ่มต้น</p>
+                  <p className="mt-1 text-lg text-gray-900">{selectedBatch.initialQuantity} หน่วย</p>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-sm font-medium text-gray-500">Purchase Price Per Unit</p>
+                  <p className="text-sm font-medium text-gray-500">ราคาทุนต่อหน่วย</p>
                   <p className="mt-1 text-lg text-gray-900">{formatCurrency(selectedBatch.purchasePricePerUnit)}</p>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-gray-500">Purchase Date</p>
+                  <p className="text-sm font-medium text-gray-500">วันที่ซื้อ</p>
                   <p className="mt-1 text-lg text-gray-900">{formatDate(selectedBatch.purchaseDate)}</p>
                 </div>
               </div>
@@ -523,13 +550,13 @@ const BatchManagement: React.FC = () => {
               <div className="border-t pt-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-sm font-medium text-gray-500">Total Purchase Value</p>
+                    <p className="text-sm font-medium text-gray-500">มูลค่าการซื้อทั้งหมด</p>
                     <p className="mt-1 text-lg text-gray-900">
                       {formatCurrency(selectedBatch.purchasePricePerUnit * selectedBatch.initialQuantity)}
                     </p>
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-500">Remaining Value</p>
+                    <p className="text-sm font-medium text-gray-500">มูลค่าคงเหลือ</p>
                     <p className="mt-1 text-lg text-gray-900">
                       {formatCurrency(selectedBatch.purchasePricePerUnit * selectedBatch.currentQuantity)}
                     </p>
@@ -540,13 +567,13 @@ const BatchManagement: React.FC = () => {
               <div className="border-t pt-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-sm font-medium text-gray-500">Units Sold</p>
+                    <p className="text-sm font-medium text-gray-500">จำนวนที่ขายแล้ว</p>
                     <p className="mt-1 text-lg text-gray-900">
-                      {selectedBatch.initialQuantity - selectedBatch.currentQuantity} units
+                      {selectedBatch.initialQuantity - selectedBatch.currentQuantity} หน่วย
                     </p>
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-500">Inventory Status</p>
+                    <p className="text-sm font-medium text-gray-500">สถานะสินค้า</p>
                     <p className="mt-1 text-lg">
                       <span className={`px-2 py-1 text-sm font-semibold rounded-full ${
                         selectedBatch.currentQuantity === 0
@@ -556,10 +583,10 @@ const BatchManagement: React.FC = () => {
                           : 'bg-green-100 text-green-800'
                       }`}>
                         {selectedBatch.currentQuantity === 0
-                          ? 'Depleted'
+                          ? 'หมด'
                           : selectedBatch.currentQuantity < selectedBatch.initialQuantity * 0.2
-                          ? 'Low Stock'
-                          : 'In Stock'}
+                          ? 'สต็อกต่ำ'
+                          : 'มีสินค้า'}
                       </span>
                     </p>
                   </div>
@@ -567,13 +594,13 @@ const BatchManagement: React.FC = () => {
               </div>
 
               <div className="border-t pt-4">
-                <p className="text-sm font-medium text-gray-500">Created At</p>
-                <p className="mt-1 text-sm text-gray-900">{new Date(selectedBatch.createdAt).toLocaleString()}</p>
+                <p className="text-sm font-medium text-gray-500">วันที่สร้าง</p>
+                <p className="mt-1 text-sm text-gray-900">{new Date(selectedBatch.createdAt).toLocaleString('th-TH')}</p>
               </div>
 
               <div className="border-t pt-4">
-                <p className="text-sm font-medium text-gray-500">Last Updated</p>
-                <p className="mt-1 text-sm text-gray-900">{new Date(selectedBatch.updatedAt).toLocaleString()}</p>
+                <p className="text-sm font-medium text-gray-500">อัปเดตล่าสุด</p>
+                <p className="mt-1 text-sm text-gray-900">{new Date(selectedBatch.updatedAt).toLocaleString('th-TH')}</p>
               </div>
             </div>
 
@@ -582,7 +609,7 @@ const BatchManagement: React.FC = () => {
                 onClick={() => setSelectedBatch(null)}
                 className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500"
               >
-                Close
+                ปิด
               </button>
             </div>
           </div>
@@ -594,26 +621,26 @@ const BatchManagement: React.FC = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              Confirm Delete
+              ยืนยันการลบ
             </h3>
             <p className="text-gray-600 mb-2">
-              Are you sure you want to delete batch <strong>{batchToDelete.batchIdentifier}</strong>?
+              คุณแน่ใจหรือไม่ว่าต้องการลบสินค้า <strong>{batchToDelete.batchIdentifier}</strong>?
             </p>
             <p className="text-sm text-gray-500 mb-6">
-              This action cannot be undone. Note: Batches referenced by sales orders cannot be deleted.
+              การดำเนินการนี้ไม่สามารถย้อนกลับได้ หมายเหตุ: สินค้าที่ถูกอ้างอิงโดยคำสั่งขายไม่สามารถลบได้
             </p>
             <div className="flex gap-2 justify-end">
               <button
                 onClick={() => setBatchToDelete(null)}
                 className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500"
               >
-                Cancel
+                ยกเลิก
               </button>
               <button
                 onClick={handleDeleteBatch}
                 className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
               >
-                Delete
+                ลบ
               </button>
             </div>
           </div>
