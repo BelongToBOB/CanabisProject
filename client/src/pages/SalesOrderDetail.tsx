@@ -1,6 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import apiClient from '../services/api';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/common/Card';
+import { Button } from '@/components/common/Button';
+import { Badge } from '@/components/common/Badge';
+import { Alert, AlertDescription } from '@/components/common/Alert';
+import { LoadingState } from '@/components/shared/LoadingState';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/common/Dialog';
+import { toast } from '../contexts/CustomToastContext';
+import { formatCurrency, formatDateTime } from '@/lib/utils';
+import { ShoppingCart, Lock, Unlock, Trash2, AlertCircle, ArrowLeft } from 'lucide-react';
 
 interface LineItem {
   id: number;
@@ -32,6 +41,7 @@ const SalesOrderDetail: React.FC = () => {
   const [order, setOrder] = useState<SalesOrderDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
@@ -47,78 +57,61 @@ const SalesOrderDetail: React.FC = () => {
       const response = await apiClient.get<SalesOrderDetail>(`/sales-orders/${id}`);
       setOrder(response.data);
     } catch (err: any) {
-      setError(err.response?.data?.message || 'ไม่สามารถดึงรายละเอียดคำสั่งขายได้');
+      const errorMessage = err.response?.data?.message || 'ไม่สามารถดึงรายละเอียดคำสั่งขายได้';
+      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleDelete = async () => {
+  const handleDeleteClick = () => {
     if (!order) return;
 
     if (order.isLocked) {
-      setError('ไม่สามารถลบคำสั่งขายที่ถูกล็อกได้');
+      toast.error('ไม่สามารถลบคำสั่งขายที่ถูกล็อกได้');
       return;
     }
+    
+    setDeleteDialogOpen(true);
+  };
 
-    if (!window.confirm('คุณแน่ใจหรือไม่ว่าต้องการลบคำสั่งขายนี้? การดำเนินการนี้ไม่สามารถย้อนกลับได้')) {
-      return;
-    }
+  const handleDeleteConfirm = async () => {
+    if (!order) return;
 
     try {
       setIsDeleting(true);
-      setError(null);
       await apiClient.delete(`/sales-orders/${id}`);
+      toast.success('ลบคำสั่งขายเรียบร้อยแล้ว');
       navigate('/sales-orders');
     } catch (err: any) {
-      setError(err.response?.data?.message || 'ไม่สามารถลบคำสั่งขายได้');
+      const errorMessage = err.response?.data?.message || 'ไม่สามารถลบคำสั่งขายได้';
+      toast.error(errorMessage);
+      setDeleteDialogOpen(false);
+    } finally {
       setIsDeleting(false);
     }
   };
 
   const formatDate = (dateString: string): string => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('th-TH', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit'
-    });
-  };
-
-  const formatCurrency = (amount: number): string => {
-    return `฿${amount.toFixed(2)}`;
+    return formatDateTime(dateString);
   };
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">กำลังโหลดรายละเอียดคำสั่งขาย...</p>
-        </div>
-      </div>
-    );
+    return <LoadingState type="page" />;
   }
 
   if (error && !order) {
     return (
-      <div className="min-h-screen bg-gray-100">
-        <div className="container mx-auto px-4 py-8">
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-md">
-              <p className="text-red-800">{error}</p>
-            </div>
-            <button
-              onClick={() => navigate('/sales-orders')}
-              className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
-            >
-              กลับไปยังรายการคำสั่งขาย
-            </button>
-          </div>
-        </div>
+      <div className="space-y-6">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+        <Button onClick={() => navigate('/sales-orders')} variant="secondary">
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          กลับไปยังรายการคำสั่งขาย
+        </Button>
       </div>
     );
   }
@@ -126,151 +119,194 @@ const SalesOrderDetail: React.FC = () => {
   if (!order) return null;
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <div className="container mx-auto px-4 py-8">
-        <div className="bg-white rounded-lg shadow-md p-6">
-          {/* Header */}
-          <div className="flex justify-between items-start mb-6">
-            <div>
-              <div className="flex items-center gap-3">
-                <h1 className="text-3xl font-bold text-gray-900">
-                  คำสั่งขายเลขที่ #{order.id}
-                </h1>
-                {order.isLocked ? (
-                  <span className="px-3 py-1 rounded-full text-sm bg-red-100 text-red-800">
-                    ล็อกแล้ว
-                  </span>
-                ) : (
-                  <span className="px-3 py-1 rounded-full text-sm bg-green-100 text-green-800">
-                    ยังไม่ล็อก
-                  </span>
-                )}
-              </div>
-              <p className="mt-2 text-gray-600">
-                ดูรายละเอียดข้อมูลของรายการขายนี้
-              </p>
-            </div>
-            <button
-              onClick={() => navigate('/sales-orders')}
-              className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
+    <div className="space-y-6">
+      {/* Page Header */}
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div>
+          <div className="flex items-center gap-3 mb-2">
+            <h1 className="text-3xl font-bold tracking-tight">
+              คำสั่งขาย #{order.id}
+            </h1>
+            {order.isLocked ? (
+              <Badge variant="default" className="gap-1">
+                <Lock className="h-3 w-3" />
+                ล็อกแล้ว
+              </Badge>
+            ) : (
+              <Badge variant="success" className="gap-1">
+                <Unlock className="h-3 w-3" />
+                ยังไม่ล็อก
+              </Badge>
+            )}
+          </div>
+          <p className="text-muted-foreground">
+            ดูรายละเอียดข้อมูลของรายการขายนี้
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button onClick={() => navigate('/sales-orders')} variant="secondary">
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            กลับไปยังรายการ
+          </Button>
+          {!order.isLocked && (
+            <Button
+              onClick={handleDeleteClick}
+              variant="destructive"
+              disabled={isDeleting}
             >
-              กลับไปยังรายการ
-            </button>
-          </div>
+              <Trash2 className="h-4 w-4 mr-2" />
+              ลบคำสั่งขาย
+            </Button>
+          )}
+        </div>
+      </div>
 
-          {/* Order Info */}
-          <div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="p-4 bg-gray-50 rounded-lg ">
-              <h2 className="text-sm font-medium text-gray-500 mb-3">
-                ข้อมูลคำสั่งขาย
-              </h2>
-              <div className="space-y-2">
-                <div className="flex justify-between">
-                  <span>วันที่ขาย:</span>
-                  <span>{formatDate(order.orderDate)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>ชื่อลูกค้า:</span>
-                  <span>{order.customerName || 'ไม่ระบุ'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>จำนวนรายการ:</span>
-                  <span>{order.lineItems.length}</span>
-                </div>
-              </div>
+      {/* Order Info Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>ข้อมูลคำสั่งขาย</CardTitle>
+            <CardDescription>รายละเอียดทั่วไป</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex justify-between items-center py-2 border-b border-border">
+              <span className="text-sm text-muted-foreground">วันที่ขาย:</span>
+              <span className="font-medium">{formatDate(order.orderDate)}</span>
             </div>
-
-            <div className="p-4 bg-blue-50 rounded-lg ">
-              <h2 className="text-sm font-medium text-blue-700 mb-3">
-                สรุปผลทางการเงิน
-              </h2>
-              <div className="flex justify-between items-center">
-                <span>กำไรรวม:</span>
-                <span className="text-2xl font-bold">
-                  {formatCurrency(order.totalProfit)}
-                </span>
-              </div>
+            <div className="flex justify-between items-center py-2 border-b border-border">
+              <span className="text-sm text-muted-foreground">ชื่อลูกค้า:</span>
+              <span className="font-medium">{order.customerName || <span className="italic text-muted-foreground">ไม่ระบุ</span>}</span>
             </div>
-          </div>
+            <div className="flex justify-between items-center py-2">
+              <span className="text-sm text-muted-foreground">จำนวนรายการ:</span>
+              <Badge variant="secondary">{order.lineItems.length}</Badge>
+            </div>
+          </CardContent>
+        </Card>
 
-          {/* Line Items */}
-          <h2 className="text-xl font-semibold mb-4">รายการสินค้า</h2>
+        <Card className="bg-emerald-50 border-emerald-200 dark:bg-emerald-950/20 dark:border-emerald-900/30">
+          <CardHeader>
+            <CardTitle className="text-emerald-700 dark:text-emerald-400">สรุปผลทางการเงิน</CardTitle>
+            <CardDescription>กำไรรวมจากการขาย</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex justify-between items-center">
+              <span className="text-lg font-medium">กำไรรวม:</span>
+              <span className={`text-3xl font-bold ${
+                order.totalProfit >= 0 
+                  ? 'text-emerald-600 dark:text-emerald-400' 
+                  : 'text-rose-600 dark:text-rose-400'
+              }`}>
+                {formatCurrency(order.totalProfit)}
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Line Items */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <ShoppingCart className="h-5 w-5" />
+            รายการสินค้า
+          </CardTitle>
+          <CardDescription>รายละเอียดสินค้าที่ขาย</CardDescription>
+        </CardHeader>
+        <CardContent>
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-gray-100">
-                <tr>
-                  <th className="p-2 text-left">สินค้า</th>
-                  <th className="p-2 text-left">ล็อต</th>
-                  <th className="p-2 text-right">จำนวน</th>
-                  <th className="p-2 text-right">ต้นทุน/หน่วย</th>
-                  <th className="p-2 text-right">ราคาขาย/หน่วย</th>
-                  <th className="p-2 text-right">ส่วนลด</th>
-                  <th className="p-2 text-right">ราคาสุทธิ/หน่วย</th>
-                  <th className="p-2 text-right">ยอดรวม</th>
-                  <th className="p-2 text-right">กำไร</th>
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="text-left py-3 px-2 text-sm font-medium text-muted-foreground">สินค้า</th>
+                  <th className="text-left py-3 px-2 text-sm font-medium text-muted-foreground">ล็อต</th>
+                  <th className="text-right py-3 px-2 text-sm font-medium text-muted-foreground">จำนวน</th>
+                  <th className="text-right py-3 px-2 text-sm font-medium text-muted-foreground">ต้นทุน/หน่วย</th>
+                  <th className="text-right py-3 px-2 text-sm font-medium text-muted-foreground">ราคาขาย/หน่วย</th>
+                  <th className="text-right py-3 px-2 text-sm font-medium text-muted-foreground">ส่วนลด</th>
+                  <th className="text-right py-3 px-2 text-sm font-medium text-muted-foreground">ราคาสุทธิ/หน่วย</th>
+                  <th className="text-right py-3 px-2 text-sm font-medium text-muted-foreground">ยอดรวม</th>
+                  <th className="text-right py-3 px-2 text-sm font-medium text-muted-foreground">กำไร</th>
                 </tr>
               </thead>
               <tbody>
-                {order.lineItems.map(item => (
-                  <tr key={item.id}>
-                    <td className="p-2">{item.productName || 'ไม่ระบุ'}</td>
-                    <td className="p-2">{item.batchIdentifier || 'ไม่ระบุ'}</td>
-                    <td className="p-2 text-right">{item.quantitySold}</td>
-                    <td className="p-2 text-right">
+                {order.lineItems.map((item, index) => (
+                  <tr key={item.id} className={`border-b border-border hover:bg-muted/50 transition-colors ${index === order.lineItems.length - 1 ? 'border-b-0' : ''}`}>
+                    <td className="py-3 px-2 font-medium">{item.productName || <span className="italic text-muted-foreground">ไม่ระบุ</span>}</td>
+                    <td className="py-3 px-2 text-sm text-muted-foreground">{item.batchIdentifier || <span className="italic">ไม่ระบุ</span>}</td>
+                    <td className="py-3 px-2 text-right">{item.quantitySold}</td>
+                    <td className="py-3 px-2 text-right text-sm">
                       {formatCurrency(item.purchasePricePerUnit)}
                     </td>
-                    <td className="p-2 text-right">
+                    <td className="py-3 px-2 text-right text-sm">
                       {formatCurrency(item.sellingPricePerUnit)}
                     </td>
-                    <td className="p-2 text-right">
+                    <td className="py-3 px-2 text-right text-sm">
                       {item.discountType === 'NONE' ? (
-                        <span className="text-gray-400">-</span>
+                        <span className="text-muted-foreground">-</span>
                       ) : item.discountType === 'PERCENT' ? (
-                        <span className="text-orange-600">{item.discountValue}%</span>
+                        <span className="text-amber-600 dark:text-amber-400 font-medium">{item.discountValue}%</span>
                       ) : (
-                        <span className="text-orange-600">{formatCurrency(item.discountValue)}</span>
+                        <span className="text-amber-600 dark:text-amber-400 font-medium">{formatCurrency(item.discountValue)}</span>
                       )}
                     </td>
-                    <td className="p-2 text-right">
+                    <td className="py-3 px-2 text-right">
                       {item.discountType !== 'NONE' && item.discountValue > 0 ? (
-                        <span className="text-green-600 font-semibold">
+                        <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
                           {formatCurrency(item.finalSellingPricePerUnit)}
                         </span>
                       ) : (
-                        formatCurrency(item.sellingPricePerUnit)
+                        <span className="font-medium">{formatCurrency(item.sellingPricePerUnit)}</span>
                       )}
                     </td>
-                    <td className="p-2 text-right font-semibold">
+                    <td className="py-3 px-2 text-right font-semibold">
                       {formatCurrency(item.subtotal)}
                     </td>
-                    <td className="p-2 text-right">
-                      {formatCurrency(item.lineProfit)}
+                    <td className="py-3 px-2 text-right">
+                      <span className={`font-semibold ${
+                        item.lineProfit >= 0 
+                          ? 'text-emerald-600 dark:text-emerald-400' 
+                          : 'text-rose-600 dark:text-rose-400'
+                      }`}>
+                        {formatCurrency(item.lineProfit)}
+                      </span>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+        </CardContent>
+      </Card>
 
-          <div className="mt-6 flex gap-2">
-            <button
-              onClick={() => navigate('/sales-orders')}
-              className="px-6 py-3 bg-gray-300 rounded-md"
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>ยืนยันการลบคำสั่งขาย</DialogTitle>
+            <DialogDescription>
+              คุณแน่ใจหรือไม่ว่าต้องการลบคำสั่งขาย #{order.id}?
+              การดำเนินการนี้ไม่สามารถย้อนกลับได้
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="secondary"
+              onClick={() => setDeleteDialogOpen(false)}
+              disabled={isDeleting}
             >
-              กลับไปยังรายการ
-            </button>
-            {!order.isLocked && (
-              <button
-                onClick={handleDelete}
-                disabled={isDeleting}
-                className="px-6 py-3 bg-red-600 text-white rounded-md"
-              >
-                {isDeleting ? 'กำลังลบ...' : 'ลบคำสั่งขาย'}
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
+              ยกเลิก
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteConfirm}
+              disabled={isDeleting}
+            >
+              {isDeleting ? 'กำลังลบ...' : 'ลบคำสั่งขาย'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

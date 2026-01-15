@@ -129,16 +129,27 @@ export class SalesOrderService {
         throw new Error('Percentage discount cannot exceed 100%');
       }
 
-      // Calculate final price and validate it's not negative
-      let finalPrice = item.sellingPricePerUnit;
-      if (discountType === 'PERCENT') {
-        finalPrice = item.sellingPricePerUnit * (1 - discountValue / 100);
-      } else if (discountType === 'AMOUNT') {
-        finalPrice = item.sellingPricePerUnit - discountValue;
+      // Calculate subtotal before discount
+      const subtotalBeforeDiscount = item.sellingPricePerUnit * item.quantitySold;
+
+      // Validate final price based on discount type
+      if (discountType === 'AMOUNT' && discountValue > subtotalBeforeDiscount) {
+        throw new Error('Discount amount cannot exceed line item subtotal');
       }
 
-      if (finalPrice < 0) {
-        throw new Error('Final selling price cannot be negative after discount');
+      // Calculate final subtotal after discount
+      let finalSubtotal: number;
+      if (discountType === 'PERCENT') {
+        const discountAmount = subtotalBeforeDiscount * (discountValue / 100);
+        finalSubtotal = subtotalBeforeDiscount - discountAmount;
+      } else if (discountType === 'AMOUNT') {
+        finalSubtotal = Math.max(subtotalBeforeDiscount - discountValue, 0);
+      } else {
+        finalSubtotal = subtotalBeforeDiscount;
+      }
+
+      if (finalSubtotal < 0) {
+        throw new Error('Final subtotal cannot be negative after discount');
       }
     }
 
@@ -171,6 +182,11 @@ export class SalesOrderService {
   /**
    * Calculate profit for line items with discount support
    * Requirements: 5.1
+   * 
+   * Discount calculation logic:
+   * - PERCENT: Applied to unit price, then multiplied by quantity
+   * - AMOUNT: Applied to line item total (subtotal), not per unit
+   * 
    * @param lineItems - Line items with batch information
    * @returns Array of line items with calculated profit, final price, and subtotal
    */
@@ -201,16 +217,30 @@ export class SalesOrderService {
       const discountType = item.discountType || 'NONE';
       const discountValue = item.discountValue || 0;
 
-      // Calculate final selling price after discount
-      let finalSellingPricePerUnit = item.sellingPricePerUnit;
+      // Calculate subtotal before discount
+      const subtotalBeforeDiscount = item.sellingPricePerUnit * item.quantitySold;
+      
+      let finalSubtotal: number;
+      let discountAmount: number;
+
       if (discountType === 'PERCENT') {
-        finalSellingPricePerUnit = item.sellingPricePerUnit * (1 - discountValue / 100);
+        // PERCENT: discount applied as percentage of subtotal
+        discountAmount = subtotalBeforeDiscount * (discountValue / 100);
+        finalSubtotal = subtotalBeforeDiscount - discountAmount;
       } else if (discountType === 'AMOUNT') {
-        finalSellingPricePerUnit = item.sellingPricePerUnit - discountValue;
+        // AMOUNT: discount applied as fixed amount to line item total
+        discountAmount = discountValue;
+        finalSubtotal = Math.max(subtotalBeforeDiscount - discountAmount, 0);
+      } else {
+        // NONE: no discount
+        discountAmount = 0;
+        finalSubtotal = subtotalBeforeDiscount;
       }
 
-      // Calculate subtotal and profit based on final price
-      const subtotal = finalSellingPricePerUnit * item.quantitySold;
+      // Calculate final selling price per unit (after discount)
+      const finalSellingPricePerUnit = finalSubtotal / item.quantitySold;
+
+      // Calculate profit based on final price
       const lineProfit = (finalSellingPricePerUnit - purchasePricePerUnit) * item.quantitySold;
 
       return {
@@ -218,7 +248,7 @@ export class SalesOrderService {
         lineProfit,
         purchasePricePerUnit,
         finalSellingPricePerUnit,
-        subtotal,
+        subtotal: finalSubtotal,
       };
     });
   }

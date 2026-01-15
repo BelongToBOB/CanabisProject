@@ -1,5 +1,7 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { Home, ChevronRight } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 const Breadcrumb: React.FC = () => {
   const location = useLocation();
@@ -23,24 +25,16 @@ const Breadcrumb: React.FC = () => {
   }
 
   return (
-    <nav className="flex items-center space-x-2 text-sm text-gray-600">
+    <nav className="flex items-center space-x-2 text-sm text-muted-foreground mb-4">
       <Link
         to="/"
-        className="hover:text-green-700 transition-colors"
+        className={cn(
+          'flex items-center hover:text-foreground transition-colors',
+          'focus:outline-none focus:ring-2 focus:ring-ring rounded-sm'
+        )}
+        aria-label="Home"
       >
-        <svg
-          className="w-4 h-4"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
-          />
-        </svg>
+        <Home className="h-4 w-4" />
       </Link>
 
       {pathnames.map((segment, index) => {
@@ -53,13 +47,16 @@ const Breadcrumb: React.FC = () => {
 
         return (
           <React.Fragment key={routeTo}>
-            <span className="text-gray-400">/</span>
+            <ChevronRight className="h-4 w-4" />
             {isLast ? (
-              <span className="font-medium text-gray-900">{displayName}</span>
+              <span className="font-medium text-foreground">{displayName}</span>
             ) : (
               <Link
                 to={routeTo}
-                className="hover:text-green-700 transition-colors"
+                className={cn(
+                  'hover:text-foreground transition-colors',
+                  'focus:outline-none focus:ring-2 focus:ring-ring rounded-sm'
+                )}
               >
                 {displayName}
               </Link>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useToast } from '../contexts/ToastContext';
+import { toast } from '../contexts/CustomToastContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 
 /**
@@ -7,7 +7,6 @@ import LoadingSpinner from '../components/LoadingSpinner';
  * This page is for testing purposes only
  */
 const ErrorHandlingDemo: React.FC = () => {
-  const { showSuccess, showError, showInfo, showWarning } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [shouldThrowError, setShouldThrowError] = useState(false);
 
@@ -19,31 +18,31 @@ const ErrorHandlingDemo: React.FC = () => {
   };
 
   const handleSuccessToast = () => {
-    showSuccess('This is a success message!');
+    toast.success("This is a success message!");
   };
 
   const handleErrorToast = () => {
-    showError('This is an error message!');
+    toast.error("This is an error message!");
   };
 
   const handleInfoToast = () => {
-    showInfo('This is an info message!');
+    toast.info("This is an info message!");
   };
 
   const handleWarningToast = () => {
-    showWarning('This is a warning message!');
+    toast.info("This is a warning message!");
   };
 
   const handleMultipleToasts = () => {
-    showSuccess('First toast');
-    setTimeout(() => showInfo('Second toast'), 500);
-    setTimeout(() => showWarning('Third toast'), 1000);
-    setTimeout(() => showError('Fourth toast'), 1500);
+    toast.success("First toast");
+    setTimeout(() => toast.info("Second toast"), 500);
+    setTimeout(() => toast.info("Third toast"), 1000);
+    setTimeout(() => toast.error("Fourth toast"), 1500);
   };
 
   const handleLoadingDemo = async () => {
     await simulateAsyncOperation(3000);
-    showSuccess('Loading completed!');
+    toast.success("Loading completed!");
   };
 
   // This will trigger the ErrorBoundary

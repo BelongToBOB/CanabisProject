@@ -1,8 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import apiClient from '../services/api';
-import { useToast } from '../contexts/ToastContext';
+import { toast } from '../contexts/CustomToastContext';
 import { useApiError } from '../hooks/useApiError';
-import LoadingSpinner from '../components/LoadingSpinner';
+import { DataTable } from '@/components/shared/DataTable';
+import type { ColumnDef } from '@/components/shared/DataTable';
+import { EmptyState } from '@/components/shared/EmptyState';
+import { LoadingState } from '@/components/shared/LoadingState';
+import { Button } from '@/components/common/Button';
+import { Input } from '@/components/common/Input';
+import { Label } from '@/components/common/Label';
+import { Badge } from '@/components/common/Badge';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/common/Dialog';
+import { Package, Plus, Trash2, Eye } from 'lucide-react';
+import { formatCurrency, formatDate } from '@/lib/utils';
 
 interface Batch {
   id: number;
@@ -27,18 +37,17 @@ interface BatchFormData {
 }
 
 const BatchManagement: React.FC = () => {
-  const { showSuccess, showError } = useToast();
   const { handleError } = useApiError();
   const [batches, setBatches] = useState<Batch[]>([]);
-  const [filteredBatches, setFilteredBatches] = useState<Batch[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   
-  // Filter state
-  const [productNameFilter, setProductNameFilter] = useState('');
+  // Dialog state
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [showDetailDialog, setShowDetailDialog] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [selectedBatch, setSelectedBatch] = useState<Batch | null>(null);
   
   // Form state
-  const [showCreateForm, setShowCreateForm] = useState(false);
   const [formData, setFormData] = useState<BatchFormData>({
     batchIdentifier: '',
     productName: '',
@@ -48,39 +57,19 @@ const BatchManagement: React.FC = () => {
     initialQuantity: '',
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
-  
-  // Detail view state
-  const [selectedBatch, setSelectedBatch] = useState<Batch | null>(null);
-  
-  // Delete confirmation state
-  const [batchToDelete, setBatchToDelete] = useState<Batch | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Fetch batches on component mount
   useEffect(() => {
     fetchBatches();
   }, []);
 
-  // Apply filter when batches or filter changes
-  useEffect(() => {
-    if (productNameFilter.trim() === '') {
-      setFilteredBatches(batches);
-    } else {
-      const filtered = batches.filter(batch =>
-        batch.productName.toLowerCase().includes(productNameFilter.toLowerCase())
-      );
-      setFilteredBatches(filtered);
-    }
-  }, [batches, productNameFilter]);
-
   const fetchBatches = async () => {
     try {
       setIsLoading(true);
-      setError(null);
       const response = await apiClient.get<Batch[]>('/batches');
       setBatches(response.data);
     } catch (err: any) {
-      const errorMsg = err.response?.data?.message || 'ไม่สามารถดึงข้อมูลสินค้าได้';
-      setError(errorMsg);
       handleError(err, 'ไม่สามารถดึงข้อมูลสินค้าได้');
     } finally {
       setIsLoading(false);
@@ -128,12 +117,12 @@ const BatchManagement: React.FC = () => {
     e.preventDefault();
     
     if (!validateForm()) {
-      showError('กรุณาแก้ไขข้อผิดพลาดในการตรวจสอบ');
+      toast.error('กรุณาแก้ไขข้อผิดพลาดในการตรวจสอบ');
       return;
     }
 
     try {
-      setError(null);
+      setIsSubmitting(true);
       const batchData = {
         batchIdentifier: formData.batchIdentifier,
         productName: formData.productName,
@@ -144,32 +133,32 @@ const BatchManagement: React.FC = () => {
       };
       
       await apiClient.post('/batches', batchData);
-      showSuccess('สร้างสินค้าสำเร็จ');
-      setShowCreateForm(false);
+      toast.success('สร้างสินค้าสำเร็จ');
+      setShowCreateDialog(false);
       resetForm();
       fetchBatches();
     } catch (err: any) {
-      const errorMsg = err.response?.data?.message || 'ไม่สามารถสร้างสินค้าได้';
-      setError(errorMsg);
       handleError(err, 'ไม่สามารถสร้างสินค้าได้');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleDeleteBatch = async () => {
-    if (!batchToDelete) return;
+    if (!selectedBatch) return;
 
     try {
-      setError(null);
-      await apiClient.delete(`/batches/${batchToDelete.id}`);
-      showSuccess('ลบสินค้าสำเร็จ');
-      setBatchToDelete(null);
+      setIsSubmitting(true);
+      await apiClient.delete(`/batches/${selectedBatch.id}`);
+      toast.success('ลบสินค้าสำเร็จ');
+      setShowDeleteDialog(false);
+      setShowDetailDialog(false);
       setSelectedBatch(null);
       fetchBatches();
     } catch (err: any) {
-      const errorMessage = err.response?.data?.message || 'ไม่สามารถลบสินค้าได้';
-      setError(errorMessage);
       handleError(err, 'ไม่สามารถลบสินค้าได้');
-      setBatchToDelete(null);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -198,453 +187,428 @@ const BatchManagement: React.FC = () => {
     }
   };
 
-  const formatDate = (dateString: string): string => {
-    return new Date(dateString).toLocaleDateString();
+  const openCreateDialog = () => {
+    resetForm();
+    setShowCreateDialog(true);
   };
 
-  const formatCurrency = (amount: number): string => {
-    return `$${amount.toFixed(2)}`;
+  const openDetailDialog = (batch: Batch) => {
+    setSelectedBatch(batch);
+    setShowDetailDialog(true);
   };
+
+  const openDeleteDialog = (batch: Batch) => {
+    setSelectedBatch(batch);
+    setShowDeleteDialog(true);
+  };
+
+  const getStockStatus = (batch: Batch): { label: string; variant: 'success' | 'warning' | 'danger' } => {
+    if (batch.currentQuantity === 0) {
+      return { label: 'หมด', variant: 'danger' };
+    }
+    if (batch.currentQuantity < batch.initialQuantity * 0.2) {
+      return { label: 'สต็อกต่ำ', variant: 'warning' };
+    }
+    return { label: 'มีสินค้า', variant: 'success' };
+  };
+
+  // Define table columns
+  const columns: ColumnDef<Batch>[] = [
+    {
+      key: 'batchIdentifier',
+      header: 'รหัสสินค้า',
+      sortable: true,
+      render: (batch) => (
+        <span className="font-medium">{batch.batchIdentifier}</span>
+      ),
+    },
+    {
+      key: 'productName',
+      header: 'ชื่อสินค้า',
+      sortable: true,
+    },
+    {
+      key: 'currentQuantity',
+      header: 'จำนวนปัจจุบัน',
+      sortable: true,
+      render: (batch) => (
+        <span className={batch.currentQuantity === 0 ? 'text-destructive font-semibold' : ''}>
+          {batch.currentQuantity}
+        </span>
+      ),
+    },
+    {
+      key: 'initialQuantity',
+      header: 'จำนวนเริ่มต้น',
+      sortable: true,
+    },
+    {
+      key: 'purchasePricePerUnit',
+      header: 'ราคาทุน',
+      sortable: true,
+      render: (batch) => formatCurrency(batch.purchasePricePerUnit),
+    },
+    {
+      key: 'purchaseDate',
+      header: 'วันที่ซื้อ',
+      sortable: true,
+      render: (batch) => formatDate(batch.purchaseDate),
+    },
+    {
+      key: 'status',
+      header: 'สถานะ',
+      render: (batch) => {
+        const status = getStockStatus(batch);
+        return <Badge variant={status.variant}>{status.label}</Badge>;
+      },
+    },
+    {
+      key: 'actions',
+      header: 'การดำเนินการ',
+      render: (batch) => (
+        <div className="flex gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => openDetailDialog(batch)}
+          >
+            <Eye className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => openDeleteDialog(batch)}
+          >
+            <Trash2 className="h-4 w-4 text-destructive" />
+          </Button>
+        </div>
+      ),
+    },
+  ];
 
   if (isLoading) {
-    return <LoadingSpinner fullScreen message="กำลังโหลดสินค้า..." />;
+    return <LoadingState type="page" />;
   }
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <div className="container mx-auto px-4 py-8">
-        <div className="bg-white rounded-lg shadow-md p-6">
-          {/* Header */}
-          <div className="flex justify-between items-center mb-6">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">รายการสินค้า</h1>
-              <p className="mt-2 text-gray-600">
-                จัดการล็อตสินค้าคงคลังกัญชา
-              </p>
-            </div>
-            <button
-              onClick={() => {
-                setShowCreateForm(!showCreateForm);
-                setSelectedBatch(null);
-                resetForm();
-              }}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              {showCreateForm ? 'ยกเลิก' : 'สร้างสินค้าใหม่'}
-            </button>
-          </div>
-
-          {/* Error Message */}
-          {error && (
-            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-md">
-              <p className="text-red-800">{error}</p>
-            </div>
-          )}
-
-          {/* Create Batch Form */}
-          {showCreateForm && (
-            <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">สร้างสินค้าใหม่</h2>
-              <form onSubmit={handleCreateBatch} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label htmlFor="batchIdentifier" className="block text-sm font-medium text-gray-700">
-                      รหัสสินค้า
-                    </label>
-                    <input
-                      type="text"
-                      id="batchIdentifier"
-                      name="batchIdentifier"
-                      value={formData.batchIdentifier}
-                      onChange={handleInputChange}
-                      className={`mt-1 block w-full px-3 py-2 border ${
-                        formErrors.batchIdentifier ? 'border-red-300' : 'border-gray-300'
-                      } rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500`}
-                      placeholder="191268 (ตามวันที่)"
-                    />
-                    {formErrors.batchIdentifier && (
-                      <p className="mt-1 text-sm text-red-600">{formErrors.batchIdentifier}</p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label htmlFor="productName" className="block text-sm font-medium text-gray-700">
-                      ชื่อสินค้า
-                    </label>
-                    <input
-                      type="text"
-                      id="productName"
-                      name="productName"
-                      value={formData.productName}
-                      onChange={handleInputChange}
-                      className={`mt-1 block w-full px-3 py-2 border ${
-                        formErrors.productName ? 'border-red-300' : 'border-gray-300'
-                      } rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500`}
-                      placeholder="กรอกชื่อสินค้า"
-                    />
-                    {formErrors.productName && (
-                      <p className="mt-1 text-sm text-red-600">{formErrors.productName}</p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label htmlFor="purchaseDate" className="block text-sm font-medium text-gray-700">
-                      วันที่ซื้อ
-                    </label>
-                    <input
-                      type="date"
-                      id="purchaseDate"
-                      name="purchaseDate"
-                      value={formData.purchaseDate}
-                      onChange={handleInputChange}
-                      className={`mt-1 block w-full px-3 py-2 border ${
-                        formErrors.purchaseDate ? 'border-red-300' : 'border-gray-300'
-                      } rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500`}
-                    />
-                    {formErrors.purchaseDate && (
-                      <p className="mt-1 text-sm text-red-600">{formErrors.purchaseDate}</p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label htmlFor="purchasePricePerUnit" className="block text-sm font-medium text-gray-700">
-                      ราคาทุน/กรัม
-                    </label>
-                    <input
-                      type="number"
-                      id="purchasePricePerUnit"
-                      name="purchasePricePerUnit"
-                      value={formData.purchasePricePerUnit}
-                      onChange={handleInputChange}
-                      step="0.01"
-                      min="0"
-                      className={`mt-1 block w-full px-3 py-2 border ${
-                        formErrors.purchasePricePerUnit ? 'border-red-300' : 'border-gray-300'
-                      } rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500`}
-                      placeholder="0.00"
-                    />
-                    {formErrors.purchasePricePerUnit && (
-                      <p className="mt-1 text-sm text-red-600">{formErrors.purchasePricePerUnit}</p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label htmlFor="defaultSellingPricePerUnit" className="block text-sm font-medium text-gray-700">
-                      ราคาขาย/กรัม (ค่าเริ่มต้น)
-                    </label>
-                    <input
-                      type="number"
-                      id="defaultSellingPricePerUnit"
-                      name="defaultSellingPricePerUnit"
-                      value={formData.defaultSellingPricePerUnit}
-                      onChange={handleInputChange}
-                      step="0.01"
-                      min="0"
-                      className={`mt-1 block w-full px-3 py-2 border ${
-                        formErrors.defaultSellingPricePerUnit ? 'border-red-300' : 'border-gray-300'
-                      } rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500`}
-                      placeholder="0.00"
-                    />
-                    {formErrors.defaultSellingPricePerUnit && (
-                      <p className="mt-1 text-sm text-red-600">{formErrors.defaultSellingPricePerUnit}</p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label htmlFor="initialQuantity" className="block text-sm font-medium text-gray-700">
-                      จำนวนที่ซื้อ
-                    </label>
-                    <input
-                      type="number"
-                      id="initialQuantity"
-                      name="initialQuantity"
-                      value={formData.initialQuantity}
-                      onChange={handleInputChange}
-                      min="1"
-                      step="1"
-                      className={`mt-1 block w-full px-3 py-2 border ${
-                        formErrors.initialQuantity ? 'border-red-300' : 'border-gray-300'
-                      } rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500`}
-                      placeholder="0"
-                    />
-                    {formErrors.initialQuantity && (
-                      <p className="mt-1 text-sm text-red-600">{formErrors.initialQuantity}</p>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex gap-2">
-                  <button
-                    type="submit"
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    เพิ่มสินค้า
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowCreateForm(false);
-                      resetForm();
-                    }}
-                    className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500"
-                  >
-                    ยกเลิก
-                  </button>
-                </div>
-              </form>
-            </div>
-          )}
-
-          {/* Filter Section */}
-          <div className="mb-6">
-            <label htmlFor="productNameFilter" className="block text-sm font-medium text-gray-700 mb-2">
-              ค้นหารายการสินค้า
-            </label>
-            <input
-              type="text"
-              id="productNameFilter"
-              value={productNameFilter}
-              onChange={(e) => setProductNameFilter(e.target.value)}
-              className="block w-full md:w-1/3 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Search by product name..."
-            />
-          </div>
-
-          {/* Batches Table */}
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    รหัสสินค้า
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    ชื่อสินค้า
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    จำนวนปัจจุบัน
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    จำนวนเริ่มต้น
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    ราคาทุน
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    วันที่ซื้อ
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    การดำเนินการ
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredBatches.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
-                      {productNameFilter ? 'ไม่พบสินค้าที่ตรงกับการค้นหา' : 'ไม่พบสินค้า'}
-                    </td>
-                  </tr>
-                ) : (
-                  filteredBatches.map((batch) => (
-                    <tr key={batch.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {batch.batchIdentifier}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {batch.productName}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        <span className={batch.currentQuantity === 0 ? 'text-red-600 font-semibold' : ''}>
-                          {batch.currentQuantity}
-                          {batch.currentQuantity === 0 && ' (หมด)'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {batch.initialQuantity}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {formatCurrency(batch.purchasePricePerUnit)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {formatDate(batch.purchaseDate)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <button
-                          onClick={() => setSelectedBatch(batch)}
-                          className="text-blue-600 hover:text-blue-900 mr-4"
-                        >
-                          ดูรายละเอียด
-                        </button>
-                        <button
-                          onClick={() => setBatchToDelete(batch)}
-                          className="text-red-600 hover:text-red-900"
-                        >
-                          ลบ
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold">รายการสินค้า</h1>
+          <p className="text-muted-foreground mt-1">
+            จัดการล็อตสินค้าคงคลังกัญชา
+          </p>
         </div>
+        <Button onClick={openCreateDialog}>
+          <Plus className="h-4 w-4" />
+          สร้างสินค้าใหม่
+        </Button>
       </div>
 
-      {/* Batch Detail Modal */}
-      {selectedBatch && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-2xl font-semibold text-gray-900">
-                รายละเอียดสินค้า
-              </h3>
-              <button
-                onClick={() => setSelectedBatch(null)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+      {/* Data Table */}
+      <DataTable
+        data={batches}
+        columns={columns}
+        searchKey="productName"
+        searchPlaceholder="ค้นหาชื่อสินค้า..."
+        emptyState={
+          <EmptyState
+            icon={<Package className="h-12 w-12 text-muted-foreground" />}
+            title="ไม่มีสินค้า"
+            description="เริ่มต้นโดยการสร้างสินค้าใหม่"
+            action={{
+              label: 'สร้างสินค้าใหม่',
+              onClick: openCreateDialog,
+            }}
+          />
+        }
+      />
+
+      {/* Create Batch Dialog */}
+      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>สร้างสินค้าใหม่</DialogTitle>
+            <DialogDescription>
+              กรอกข้อมูลสินค้าใหม่ที่ต้องการเพิ่มเข้าสู่ระบบ
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleCreateBatch} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="batchIdentifier" required>
+                  รหัสสินค้า
+                </Label>
+                <Input
+                  id="batchIdentifier"
+                  name="batchIdentifier"
+                  value={formData.batchIdentifier}
+                  onChange={handleInputChange}
+                  placeholder="191268 (ตามวันที่)"
+                  className={formErrors.batchIdentifier ? 'border-rose-500 focus:ring-rose-500' : ''}
+                />
+                {formErrors.batchIdentifier && (
+                  <p className="text-sm text-rose-600 dark:text-rose-400">{formErrors.batchIdentifier}</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="productName" required>
+                  ชื่อสินค้า
+                </Label>
+                <Input
+                  id="productName"
+                  name="productName"
+                  value={formData.productName}
+                  onChange={handleInputChange}
+                  placeholder="กรอกชื่อสินค้า"
+                  className={formErrors.productName ? 'border-rose-500 focus:ring-rose-500' : ''}
+                />
+                {formErrors.productName && (
+                  <p className="text-sm text-rose-600 dark:text-rose-400">{formErrors.productName}</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="purchaseDate" required>
+                  วันที่ซื้อ
+                </Label>
+                <Input
+                  type="date"
+                  id="purchaseDate"
+                  name="purchaseDate"
+                  value={formData.purchaseDate}
+                  onChange={handleInputChange}
+                  className={formErrors.purchaseDate ? 'border-rose-500 focus:ring-rose-500' : ''}
+                />
+                {formErrors.purchaseDate && (
+                  <p className="text-sm text-rose-600 dark:text-rose-400">{formErrors.purchaseDate}</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="purchasePricePerUnit" required>
+                  ราคาทุน/กรัม
+                </Label>
+                <Input
+                  type="number"
+                  id="purchasePricePerUnit"
+                  name="purchasePricePerUnit"
+                  value={formData.purchasePricePerUnit}
+                  onChange={handleInputChange}
+                  step="0.01"
+                  min="0"
+                  placeholder="0.00"
+                  className={formErrors.purchasePricePerUnit ? 'border-rose-500 focus:ring-rose-500' : ''}
+                />
+                {formErrors.purchasePricePerUnit && (
+                  <p className="text-sm text-rose-600 dark:text-rose-400">{formErrors.purchasePricePerUnit}</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="defaultSellingPricePerUnit">
+                  ราคาขาย/กรัม (ค่าเริ่มต้น)
+                </Label>
+                <Input
+                  type="number"
+                  id="defaultSellingPricePerUnit"
+                  name="defaultSellingPricePerUnit"
+                  value={formData.defaultSellingPricePerUnit}
+                  onChange={handleInputChange}
+                  step="0.01"
+                  min="0"
+                  placeholder="0.00"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="initialQuantity" required>
+                  จำนวนที่ซื้อ
+                </Label>
+                <Input
+                  type="number"
+                  id="initialQuantity"
+                  name="initialQuantity"
+                  value={formData.initialQuantity}
+                  onChange={handleInputChange}
+                  min="1"
+                  step="1"
+                  placeholder="0"
+                  className={formErrors.initialQuantity ? 'border-rose-500 focus:ring-rose-500' : ''}
+                />
+                {formErrors.initialQuantity && (
+                  <p className="text-sm text-rose-600 dark:text-rose-400">{formErrors.initialQuantity}</p>
+                )}
+              </div>
             </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setShowCreateDialog(false)}
+                disabled={isSubmitting}
+              >
+                ยกเลิก
+              </Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? 'กำลังบันทึก...' : 'เพิ่มสินค้า'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Detail Dialog */}
+      {selectedBatch && (
+        <Dialog open={showDetailDialog} onOpenChange={setShowDetailDialog}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>รายละเอียดสินค้า</DialogTitle>
+              <DialogDescription>
+                ข้อมูลรายละเอียดของสินค้า {selectedBatch.batchIdentifier}
+              </DialogDescription>
+            </DialogHeader>
             
-            <div className="space-y-4">
+            <div className="space-y-6">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-sm font-medium text-gray-500">รหัสสินค้า</p>
-                  <p className="mt-1 text-lg text-gray-900">{selectedBatch.batchIdentifier}</p>
+                  <p className="text-sm font-medium text-slate-500 dark:text-slate-400">รหัสสินค้า</p>
+                  <p className="mt-1.5 text-base font-semibold">{selectedBatch.batchIdentifier}</p>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-gray-500">ชื่อสินค้า</p>
-                  <p className="mt-1 text-lg text-gray-900">{selectedBatch.productName}</p>
+                  <p className="text-sm font-medium text-slate-500 dark:text-slate-400">ชื่อสินค้า</p>
+                  <p className="mt-1.5 text-base">{selectedBatch.productName}</p>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-sm font-medium text-gray-500">จำนวนปัจจุบัน</p>
-                  <p className={`mt-1 text-lg ${selectedBatch.currentQuantity === 0 ? 'text-red-600 font-semibold' : 'text-gray-900'}`}>
+                  <p className="text-sm font-medium text-slate-500 dark:text-slate-400">จำนวนปัจจุบัน</p>
+                  <p className={`mt-1.5 text-base font-semibold ${selectedBatch.currentQuantity === 0 ? 'text-rose-600 dark:text-rose-400' : ''}`}>
                     {selectedBatch.currentQuantity} หน่วย
                     {selectedBatch.currentQuantity === 0 && ' (หมด)'}
                   </p>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-gray-500">จำนวนเริ่มต้น</p>
-                  <p className="mt-1 text-lg text-gray-900">{selectedBatch.initialQuantity} หน่วย</p>
+                  <p className="text-sm font-medium text-slate-500 dark:text-slate-400">จำนวนเริ่มต้น</p>
+                  <p className="mt-1.5 text-base">{selectedBatch.initialQuantity} หน่วย</p>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-sm font-medium text-gray-500">ราคาทุนต่อหน่วย</p>
-                  <p className="mt-1 text-lg text-gray-900">{formatCurrency(selectedBatch.purchasePricePerUnit)}</p>
+                  <p className="text-sm font-medium text-slate-500 dark:text-slate-400">ราคาทุนต่อหน่วย</p>
+                  <p className="mt-1.5 text-base font-semibold">{formatCurrency(selectedBatch.purchasePricePerUnit)}</p>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-gray-500">วันที่ซื้อ</p>
-                  <p className="mt-1 text-lg text-gray-900">{formatDate(selectedBatch.purchaseDate)}</p>
+                  <p className="text-sm font-medium text-slate-500 dark:text-slate-400">วันที่ซื้อ</p>
+                  <p className="mt-1.5 text-base">{formatDate(selectedBatch.purchaseDate)}</p>
                 </div>
               </div>
 
-              <div className="border-t pt-4">
+              <div className="border-t border-slate-200 dark:border-slate-800 pt-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-sm font-medium text-gray-500">มูลค่าการซื้อทั้งหมด</p>
-                    <p className="mt-1 text-lg text-gray-900">
+                    <p className="text-sm font-medium text-slate-500 dark:text-slate-400">มูลค่าการซื้อทั้งหมด</p>
+                    <p className="mt-1.5 text-base font-semibold">
                       {formatCurrency(selectedBatch.purchasePricePerUnit * selectedBatch.initialQuantity)}
                     </p>
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-500">มูลค่าคงเหลือ</p>
-                    <p className="mt-1 text-lg text-gray-900">
+                    <p className="text-sm font-medium text-slate-500 dark:text-slate-400">มูลค่าคงเหลือ</p>
+                    <p className="mt-1.5 text-base font-semibold">
                       {formatCurrency(selectedBatch.purchasePricePerUnit * selectedBatch.currentQuantity)}
                     </p>
                   </div>
                 </div>
               </div>
 
-              <div className="border-t pt-4">
+              <div className="border-t border-slate-200 dark:border-slate-800 pt-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-sm font-medium text-gray-500">จำนวนที่ขายแล้ว</p>
-                    <p className="mt-1 text-lg text-gray-900">
+                    <p className="text-sm font-medium text-slate-500 dark:text-slate-400">จำนวนที่ขายแล้ว</p>
+                    <p className="mt-1.5 text-base">
                       {selectedBatch.initialQuantity - selectedBatch.currentQuantity} หน่วย
                     </p>
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-500">สถานะสินค้า</p>
-                    <p className="mt-1 text-lg">
-                      <span className={`px-2 py-1 text-sm font-semibold rounded-full ${
-                        selectedBatch.currentQuantity === 0
-                          ? 'bg-red-100 text-red-800'
-                          : selectedBatch.currentQuantity < selectedBatch.initialQuantity * 0.2
-                          ? 'bg-yellow-100 text-yellow-800'
-                          : 'bg-green-100 text-green-800'
-                      }`}>
-                        {selectedBatch.currentQuantity === 0
-                          ? 'หมด'
-                          : selectedBatch.currentQuantity < selectedBatch.initialQuantity * 0.2
-                          ? 'สต็อกต่ำ'
-                          : 'มีสินค้า'}
-                      </span>
-                    </p>
+                    <p className="text-sm font-medium text-slate-500 dark:text-slate-400">สถานะสินค้า</p>
+                    <div className="mt-1.5">
+                      <Badge variant={getStockStatus(selectedBatch).variant}>
+                        {getStockStatus(selectedBatch).label}
+                      </Badge>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              <div className="border-t pt-4">
-                <p className="text-sm font-medium text-gray-500">วันที่สร้าง</p>
-                <p className="mt-1 text-sm text-gray-900">{new Date(selectedBatch.createdAt).toLocaleString('th-TH')}</p>
+              <div className="border-t border-slate-200 dark:border-slate-800 pt-4">
+                <p className="text-sm font-medium text-slate-500 dark:text-slate-400">วันที่สร้าง</p>
+                <p className="mt-1.5 text-sm text-slate-600 dark:text-slate-300">{new Date(selectedBatch.createdAt).toLocaleString('th-TH')}</p>
               </div>
 
-              <div className="border-t pt-4">
-                <p className="text-sm font-medium text-gray-500">อัปเดตล่าสุด</p>
-                <p className="mt-1 text-sm text-gray-900">{new Date(selectedBatch.updatedAt).toLocaleString('th-TH')}</p>
+              <div className="border-t border-slate-200 dark:border-slate-800 pt-4">
+                <p className="text-sm font-medium text-slate-500 dark:text-slate-400">อัปเดตล่าสุด</p>
+                <p className="mt-1.5 text-sm text-slate-600 dark:text-slate-300">{new Date(selectedBatch.updatedAt).toLocaleString('th-TH')}</p>
               </div>
             </div>
 
-            <div className="mt-6 flex justify-end">
-              <button
-                onClick={() => setSelectedBatch(null)}
-                className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500"
+            <DialogFooter>
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  setShowDetailDialog(false);
+                  setShowDeleteDialog(true);
+                }}
+              >
+                <Trash2 className="h-4 w-4" />
+                ลบสินค้า
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => setShowDetailDialog(false)}
               >
                 ปิด
-              </button>
-            </div>
-          </div>
-        </div>
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
 
-      {/* Delete Confirmation Modal */}
-      {batchToDelete && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              ยืนยันการลบ
-            </h3>
-            <p className="text-gray-600 mb-2">
-              คุณแน่ใจหรือไม่ว่าต้องการลบสินค้า <strong>{batchToDelete.batchIdentifier}</strong>?
-            </p>
-            <p className="text-sm text-gray-500 mb-6">
-              การดำเนินการนี้ไม่สามารถย้อนกลับได้ หมายเหตุ: สินค้าที่ถูกอ้างอิงโดยคำสั่งขายไม่สามารถลบได้
-            </p>
-            <div className="flex gap-2 justify-end">
-              <button
-                onClick={() => setBatchToDelete(null)}
-                className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500"
+      {/* Delete Confirmation Dialog */}
+      {selectedBatch && (
+        <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>ยืนยันการลบ</DialogTitle>
+              <DialogDescription>
+                คุณแน่ใจหรือไม่ว่าต้องการลบสินค้า <strong>{selectedBatch.batchIdentifier}</strong>?
+                <br />
+                <br />
+                การดำเนินการนี้ไม่สามารถย้อนกลับได้ หมายเหตุ: สินค้าที่ถูกอ้างอิงโดยคำสั่งขายไม่สามารถลบได้
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                variant="secondary"
+                onClick={() => setShowDeleteDialog(false)}
+                disabled={isSubmitting}
               >
                 ยกเลิก
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="destructive"
                 onClick={handleDeleteBatch}
-                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+                disabled={isSubmitting}
               >
-                ลบ
-              </button>
-            </div>
-          </div>
-        </div>
+                {isSubmitting ? 'กำลังลบ...' : 'ลบ'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );

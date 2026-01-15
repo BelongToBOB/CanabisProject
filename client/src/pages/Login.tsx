@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
+import { toast } from '../contexts/CustomToastContext';
 import { useAuth, type LoginCredentials } from '../contexts/AuthContext';
-import { useToast } from '../contexts/ToastContext';
 import { getErrorMessage } from '../services/api';
+import { Button } from '../components/common/Button';
+import { Input } from '../components/common/Input';
+import { Label } from '../components/common/Label';
 
 interface LoginFormData {
   username: string;
@@ -13,7 +16,6 @@ interface LoginFormData {
 const Login: React.FC = () => {
   const navigate = useNavigate();
   const { login } = useAuth();
-  const { showError, showSuccess } = useToast();
   const [error, setError] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -34,7 +36,7 @@ const Login: React.FC = () => {
       };
 
       await login(credentials);
-      showSuccess('เข้าสู่ระบบสำเร็จ!');
+      toast.success('เข้าสู่ระบบสำเร็จ!');
       navigate('/');
     } catch (err: any) {
       // Handle different error types
@@ -43,102 +45,84 @@ const Login: React.FC = () => {
         : getErrorMessage(err);
       
       setError(errorMessage);
-      showError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="max-w-md w-full bg-white rounded-lg shadow-md p-8">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-slate-50 to-white dark:from-slate-950 dark:to-slate-900">
+      <div className="max-w-md w-full bg-white dark:bg-slate-900 rounded-xl shadow-lg p-8 border border-slate-200 dark:border-slate-800">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">
-            ระบบจัดการร้านกัญชา
+          <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">
+            ระบบจัดการร้าน Era Chic
           </h1>
-          <p className="mt-2 text-gray-600">เข้าสู่ระบบบัญชีของคุณ</p>
+          <p className="mt-2 text-slate-600 dark:text-slate-400">เข้าสู่ระบบบัญชีของคุณ</p>
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           {/* Username Field */}
           <div>
-            <label
-              htmlFor="username"
-              className="block text-sm font-medium text-gray-700"
-            >
+            <Label htmlFor="username" required>
               ชื่อผู้ใช้
-            </label>
-            <input
-              id="username"
-              type="text"
-              {...register('username', {
-                required: 'กรุณากรอกชื่อผู้ใช้',
-                minLength: {
-                  value: 3,
-                  message: 'ชื่อผู้ใช้ต้องมีอย่างน้อย 3 ตัวอักษร',
-                },
-              })}
-              className={`mt-1 block w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                errors.username ? 'border-red-500' : 'border-gray-300'
-              }`}
-              placeholder="กรอกชื่อผู้ใช้"
-            />
-            {errors.username && (
-              <p className="mt-1 text-sm text-red-600">
-                {errors.username.message}
-              </p>
-            )}
+            </Label>
+            <div className="mt-1.5">
+              <Input
+                id="username"
+                type="text"
+                {...register('username', {
+                  required: 'กรุณากรอกชื่อผู้ใช้',
+                  minLength: {
+                    value: 3,
+                    message: 'ชื่อผู้ใช้ต้องมีอย่างน้อย 3 ตัวอักษร',
+                  },
+                })}
+                error={errors.username?.message}
+                placeholder="กรอกชื่อผู้ใช้"
+              />
+            </div>
           </div>
 
           {/* Password Field */}
           <div>
-            <label
-              htmlFor="password"
-              className="block text-sm font-medium text-gray-700"
-            >
+            <Label htmlFor="password" required>
               รหัสผ่าน
-            </label>
-            <input
-              id="password"
-              type="password"
-              {...register('password', {
-                required: 'กรุณากรอกรหัสผ่าน',
-                minLength: {
-                  value: 6,
-                  message: 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร',
-                },
-              })}
-              className={`mt-1 block w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                errors.password ? 'border-red-500' : 'border-gray-300'
-              }`}
-              placeholder="กรอกรหัสผ่าน"
-            />
-            {errors.password && (
-              <p className="mt-1 text-sm text-red-600">
-                {errors.password.message}
-              </p>
-            )}
+            </Label>
+            <div className="mt-1.5">
+              <Input
+                id="password"
+                type="password"
+                {...register('password', {
+                  required: 'กรุณากรอกรหัสผ่าน',
+                  minLength: {
+                    value: 6,
+                    message: 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร',
+                  },
+                })}
+                error={errors.password?.message}
+                placeholder="กรอกรหัสผ่าน"
+              />
+            </div>
           </div>
 
           {/* Error Message */}
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+            <div className="bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-400 px-4 py-3 rounded-lg">
               {error}
             </div>
           )}
 
           {/* Submit Button */}
-          <button
+          <Button
             type="submit"
             disabled={isSubmitting}
-            className={`w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white ${
-              isSubmitting
-                ? 'bg-blue-400 cursor-not-allowed'
-                : 'bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500'
-            }`}
+            variant="primary"
+            size="lg"
+            className="w-full"
           >
             {isSubmitting ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบ'}
-          </button>
+          </Button>
         </form>
       </div>
     </div>
